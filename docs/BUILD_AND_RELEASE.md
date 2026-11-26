@@ -108,7 +108,13 @@ It is expected to report no errors and only the "newer version available" notes.
 
 1. Raise `versionCode` (must increase with every release) and `versionName` in
    `app/build.gradle.kts`.
-2. Run the tests (see [TESTING.md](TESTING.md)).
+2. Run the tests (see [TESTING.md](TESTING.md)). With the signing key on your machine and a
+   phone or emulator attached, the device suite can be run against the release build itself:
+
+   ```bash
+   ./gradlew -PtestRelease :app:connectedReleaseAndroidTest
+   ```
+
 3. Tag and push:
 
    ```bash
@@ -119,7 +125,8 @@ It is expected to report no errors and only the "newer version available" notes.
    git push origin v1.0.1
    ```
 
-   CI builds the signed APK and attaches it to a GitHub release. Without CI, build locally
+   CI runs the tests (including the device suite, on an emulator), builds the APK – signed if
+   the four secrets are set – and attaches it to a GitHub release. Without CI, build locally
    with `./gradlew :app:assembleRelease`.
 
 ## Installing the APK on a phone
@@ -138,12 +145,12 @@ Kotlin), 2.8 MB fonts that are written into edited PDFs, 1.6 MB character maps a
 metrics of the PDF library, 1.5 MB resources.
 
 **Code shrinking (R8) is switched off** (`isMinifyEnabled = false` in `app/build.gradle.kts`).
-With it on the APK is about 2 MB smaller, but the on-device test suite cannot run against the
-release build: the tests share library code with the app (Kotlin, AndroidX), and R8 removes
-or renames what the app itself does not use, so the tests crash on start with
+With it on the APK would be 7.0 MB instead of 10.5 MB, but the on-device test suite cannot run
+against the release build: the tests share library code with the app (Kotlin, AndroidX), and
+R8 removes or renames what the app itself does not use, so the tests crash on start with
 `NoSuchMethodError`. A release that no device test can exercise was judged a bad trade for
-2 MB. Unshrunk, the release build is the same code as the debug build, signed with the release
-key, and the whole device suite runs against the very APK that ships:
+3.5 MB. Unshrunk, the release build is the same code as the debug build, signed with the
+release key, and the whole device suite runs against the very APK that ships:
 
 ```bash
 ./gradlew -PtestRelease :app:connectedReleaseAndroidTest
@@ -156,7 +163,7 @@ from the libraries, or accept that the shrunk APK is checked by hand – and che
 on a phone, before every release.
 
 **Bouncy Castle is left out** (`pdfcore/build.gradle.kts`). The PDF library declares this
-large cryptography library (about 4 MB in the APK) as a dependency, but only two of its
+large cryptography library (2 MB in the unshrunk APK) as a dependency, but only two of its
 classes use it, both for PDFs encrypted for the holder of a certificate. Such files cannot be
 opened by this app in any case, because Android's renderer cannot decrypt them. Password-
 encrypted files use Android's own cryptography. If certificate encryption is ever to be

@@ -58,7 +58,7 @@ android {
             // cannot run against the release build (R8 removes library code the tests share
             // with the app), so the binary that ships would be one that no device test has
             // exercised. Unshrunk, the release APK is the debug code, release-signed: what is
-            // tested is what ships. The price is size (about 5 MB more).
+            // tested is what ships. The price is size (10.5 MB instead of 7 MB).
             // Before switching it on, read docs/BUILD_AND_RELEASE.md -> "Size and minification".
             isMinifyEnabled = false
             isShrinkResources = false

@@ -449,6 +449,9 @@ Applies to features 5 and 6.
   verifier with the real renderer, including a change outside the declared area being refused
 - device: both feature tests check that the file on disk grew and that its original bytes are
   an untouched prefix.
+- device: `aDocumentOpenedThroughAContentUriIsEditedInPlaceThroughItsProvider` – the way
+  documents really arrive (a `content://` address with read and write permission): the name
+  comes from the provider, and the edit is written back through it as an appended tail.
 - cross-check: qpdf opens every written file *without recovery* and reports no problems.
 - **Not tested:** power loss during a write (the design limits the damage to the appended
   tail, but this has not been exercised); real cloud storage providers.

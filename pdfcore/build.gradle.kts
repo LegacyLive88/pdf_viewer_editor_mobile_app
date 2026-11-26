@@ -43,7 +43,7 @@ kotlin {
 
 dependencies {
     api(libs.pdfbox.android) {
-        // Bouncy Castle (about 4 MB in the APK) is only reached from two classes of the PDF
+        // Bouncy Castle (2 MB in the APK) is only reached from two classes of the PDF
         // library, both for certificate-encrypted PDFs. Those cannot be opened here in any
         // case: Android's renderer cannot decrypt them. Password-encrypted files use the
         // platform's own cryptography. See docs/ARCHITECTURE.md -> Design decisions.

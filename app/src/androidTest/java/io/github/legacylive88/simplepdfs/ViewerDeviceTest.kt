@@ -393,6 +393,51 @@ class ViewerDeviceTest {
     }
 
     @Test
+    fun aDocumentOpenedThroughAContentUriIsEditedInPlaceThroughItsProvider() {
+        // How documents really arrive: as content:// addresses from the file picker or from
+        // another app, not as file paths. The app's own FileProvider plays the other app here.
+        val shared = File(context.cacheDir, "shared").apply { mkdirs() }
+        file = File(shared, "from-another-app.pdf")
+        instrumentation.context.assets.open("fixtures/basic.pdf").use { input ->
+            FileOutputStream(file).use { input.copyTo(it) }
+        }
+        val original = file.readBytes()
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
+        val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+            .setDataAndType(uri, "application/pdf")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        scenario = ActivityScenario.launch(intent)
+        waitFor("document and text engine ready", 240_000) { val s = state(); s.phase == Phase.READY && s.textReady }
+        waitForIdleEngine()
+        SystemClock.sleep(1500)
+        assertEquals("the name is the one the provider reports", "from-another-app.pdf", state().title)
+        assertFalse("the place can be written to, so edits go into the file itself", state().editsNotInOriginal)
+
+        doubleTap(0, locate(0, "follows"))
+        waitFor("editor shown") {
+            try {
+                onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        val newText = "Written back through the provider."
+        onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText(newText), closeSoftKeyboard())
+        onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        waitFor("edit written back") { !state().working && file.length() > original.size }
+
+        val saved = file.readBytes()
+        assertTrue("only a tail was added: the original bytes are untouched", saved.copyOfRange(0, original.size).contentEquals(original))
+        readFile { session ->
+            val text = session.pageTextContent(0)
+            assertTrue(text, text.contains(newText))
+            assertFalse(text, text.contains("A second paragraph follows"))
+        }
+        assertFalse(state().editsNotInOriginal)
+        file.delete()
+    }
+
+    @Test
     fun feature6_charactersTheFontsLackAreExplainedInTheEditor() {
         launch("basic.pdf")
         val original = file.readBytes()
