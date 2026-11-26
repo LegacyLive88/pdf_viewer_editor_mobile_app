@@ -384,10 +384,11 @@ class DocumentViewModel(
                 val list = withContext(engineThread) {
                     if (d.closed) emptyList() else {
                         coordinateScale(d, session, pageIndex)
-                        session.markups(pageIndex)
+                        // Stored here, on the engine thread, so that an edit made in the
+                        // meantime (which also runs here) cannot be overwritten by this older view.
+                        session.markups(pageIndex).also { d.markups[pageIndex] = it }
                     }
                 }
-                d.markups[pageIndex] = list
                 if (doc === d && list.isNotEmpty()) _state.update { it.copy(markupVersion = it.markupVersion + 1) }
             }
         }
@@ -623,8 +624,12 @@ class DocumentViewModel(
         reportTo: ((Int, String?) -> Unit)? = null,
         block: Scope.(PdfSession) -> Any,
     ) {
-        val d = doc ?: return
-        if (_state.value.working) return
+        val d = doc
+        if (d == null || _state.value.working) {
+            // Something else is being saved right now; whoever asked must not be left waiting.
+            reportTo?.invoke(R.string.msg_stale, null)
+            return
+        }
         _state.update { it.copy(working = true) }
         viewModelScope.launch {
             var error = 0

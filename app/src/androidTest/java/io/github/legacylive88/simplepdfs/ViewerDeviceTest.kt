@@ -198,6 +198,18 @@ class ViewerDeviceTest {
         return ((r / n) shl 16) or ((g / n) shl 8) or (b / n)
     }
 
+    /**
+     * True for the yellow of a highlight, whether the sampled spot is bare paper under the
+     * highlight (bright yellow) or partly covered by a letter (dark yellow): in both cases
+     * blue is well below red and green, which is never true of black ink on white paper.
+     */
+    private fun isHighlightTint(colour: Int): Boolean {
+        val r = (colour shr 16) and 0xFF
+        val g = (colour shr 8) and 0xFF
+        val b = colour and 0xFF
+        return r - b > 50 && g - b > 50
+    }
+
     // --- tests ------------------------------------------------------------------------------------
 
     @Test
@@ -300,7 +312,7 @@ class ViewerDeviceTest {
         SystemClock.sleep(800)
         val after = colourAt(0, floatArrayOf(probe[0], probe[1] - 5.5f))
         assertTrue("highlight should tint the page (before ${Integer.toHexString(before)}, after ${Integer.toHexString(after)})",
-            (after and 0xFF) < (before and 0xFF) - 60 && (after shr 16) > 0xD0)
+            isHighlightTint(after) && !isHighlightTint(before))
         screenshot("05-highlighted")
 
         val saved = file.readBytes()
@@ -383,17 +395,23 @@ class ViewerDeviceTest {
         }
         onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText("Chinese 中文 text"), closeSoftKeyboard())
         onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        // The message names the characters; it appears under the text field, in the dialog.
+        val message = context.getString(R.string.msg_unsupported_chars, "中文")
         waitFor("error shown") {
             try {
-                onView(withText(containsString("中文"))).inRoot(isDialog()).check(matches(isDisplayed())); true
+                onView(withText(message)).inRoot(isDialog()).check(matches(isDisplayed())); true
             } catch (_: Throwable) {
                 false
             }
         }
         screenshot("06-unsupported-characters")
         assertTrue("nothing was written", file.readBytes().contentEquals(original))
-        // the dialog is still open so the text can be corrected
+        // the dialog is still open and usable, so the text can be corrected and saved
         onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed()))
+        onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText("Corrected text."), closeSoftKeyboard())
+        onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        waitFor("corrected text saved") { !state().working && file.length() > original.size }
+        readFile { assertTrue(it.pageTextContent(0).contains("Corrected text.")) }
     }
 
     @Test
@@ -465,8 +483,10 @@ class ViewerDeviceTest {
         // The line runs top to bottom on this page. Sample its box just beside the glyphs.
         val quad = readFile { it.markups(1).first { m -> m.kind == MarkupKind.HIGHLIGHT }.quads[0] }
         val inside = colourAt(1, floatArrayOf((quad.left + quad.right) / 2f, quad.top + 1.5f))
-        assertTrue("highlight colour expected on the rotated line, was ${Integer.toHexString(inside)}",
-            (inside and 0xFF) < 0xA0 && (inside shr 16) > 0xD0)
+        assertTrue("highlight colour expected on the rotated line, was ${Integer.toHexString(inside)}", isHighlightTint(inside))
+        // and beside the line the page is still plain paper
+        val beside = colourAt(1, floatArrayOf(quad.left - 6f, (quad.top + quad.bottom) / 2f))
+        assertFalse("no tint beside the line, was ${Integer.toHexString(beside)}", isHighlightTint(beside))
     }
 
     @Test

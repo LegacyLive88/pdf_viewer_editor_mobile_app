@@ -37,6 +37,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // `-PtestRelease` runs the on-device tests against the minified release build instead of
+    // the debug build, i.e. against the binary that is actually shipped.
+    if (project.hasProperty("testRelease")) testBuildType = "release"
+
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {

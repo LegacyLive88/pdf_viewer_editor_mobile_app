@@ -110,15 +110,32 @@ class PdfPagesViewTest {
     }
 
     @Test
-    fun onlyVisiblePagesAreRenderedAtTheWidthOfTheView() {
+    fun visiblePagesAndTheNextOneAreRenderedAtTheWidthOfTheView() {
         draw()
-        // 640 px of height show page 0 and the top of page 1
-        assertEquals(listOf("page=0 348x450 scale=0.569 off=0,0", "page=1 348x450 scale=0.569 off=0,0"), source.requests)
+        // 640 px of height show page 0 and the top of page 1; page 2 is prepared ahead so it
+        // is ready when it scrolls into view. Pages 3 and 4 are not touched.
+        assertEquals(
+            listOf("page=0 348x450 scale=0.569 off=0,0", "page=1 348x450 scale=0.569 off=0,0", "page=2 348x450 scale=0.569 off=0,0"),
+            source.requests,
+        )
         draw()
-        assertEquals("no duplicate requests while one is pending", 2, source.requests.size)
+        assertEquals("no duplicate requests while one is pending", 3, source.requests.size)
         source.deliver()
         draw()
-        assertEquals(2, source.requests.size)
+        assertEquals("nor once the pictures have arrived", 3, source.requests.size)
+    }
+
+    @Test
+    fun aRequestThatIsCancelledAndReplacedIsNotMistakenForItsReplacement() {
+        draw()
+        val firstRound = ArrayList(source.pending)
+        view.invalidatePage(0) // cancels the pending request for page 0 ...
+        draw()                 // ... and asks again
+        assertEquals(4, source.requests.size)
+        // the cancelled request reports back late, as a real renderer does
+        firstRound.first { it.first.width == 348 }.second(false)
+        draw()
+        assertEquals("the replacement is still known to be on its way", 4, source.requests.size)
     }
 
     @Test

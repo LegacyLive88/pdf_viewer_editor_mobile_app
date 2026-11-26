@@ -113,10 +113,16 @@ class PdfPagesView @JvmOverloads constructor(
 
     private class Tile(val bitmap: Bitmap, val version: Int, val rect: RectF, val zoom: Float)
 
+    /** A render that has been asked for and not yet answered. */
+    private class Request {
+        var handle: Cancellable? = null
+        var finished = false
+    }
+
     private val base = LinkedHashMap<Int, Tile>(16, 0.75f, true)
     private val detail = HashMap<Int, Tile>()
-    private val pendingBase = HashMap<Int, Cancellable>()
-    private val pendingDetail = HashMap<Int, Cancellable>()
+    private val pendingBase = HashMap<Int, Request>()
+    private val pendingDetail = HashMap<Int, Request>()
     private var pageVersion = IntArray(0)
     private var baseBytes = 0L
     private val maxBaseBytes: Long = min(Runtime.getRuntime().maxMemory() / 5, 96L * 1024 * 1024)
@@ -269,8 +275,8 @@ class PdfPagesView @JvmOverloads constructor(
     fun invalidatePage(pageIndex: Int) {
         if (pageIndex !in 0 until pageCount) return
         pageVersion[pageIndex]++
-        pendingBase.remove(pageIndex)?.cancel()
-        pendingDetail.remove(pageIndex)?.cancel()
+        pendingBase.remove(pageIndex)?.handle?.cancel()
+        pendingDetail.remove(pageIndex)?.handle?.cancel()
         invalidate()
         scheduleDetail(0)
     }
@@ -543,6 +549,16 @@ class PdfPagesView @JvmOverloads constructor(
             drawOverlays(canvas, src, i)
         }
         canvas.restore()
+
+        // Have the pages just outside the screen ready before they scroll into view.
+        val first = firstVisiblePage()
+        val last = lastVisiblePage()
+        for (i in intArrayOf(last + 1, first - 1)) {
+            if (i in 0 until pageCount) {
+                val tile = base[i]
+                if (tile == null || tile.version != pageVersion[i]) requestBase(i)
+            }
+        }
     }
 
     private fun drawOverlays(canvas: Canvas, src: PageSource, page: Int) {
@@ -642,8 +658,12 @@ class PdfPagesView @JvmOverloads constructor(
         }
         val version = pageVersion[page]
         val requestedFor = src
-        pendingBase[page] = src.render(page, bitmap, scale, 0f, 0f) { ok ->
-            pendingBase.remove(page)
+        val request = Request()
+        request.handle = src.render(page, bitmap, scale, 0f, 0f) { ok ->
+            request.finished = true
+            // Only forget the request if it is still the current one for this page: a cancelled
+            // request reports back too, possibly after its replacement has been registered.
+            if (pendingBase[page] === request) pendingBase.remove(page)
             if (!ok || source !== requestedFor || page >= pageCount || version != pageVersion[page]) {
                 bitmap.recycle()
                 if (ok && source === requestedFor) invalidate()
@@ -652,6 +672,8 @@ class PdfPagesView @JvmOverloads constructor(
                 invalidate()
             }
         }
+        // The source may answer before render() even returns.
+        if (!request.finished) pendingBase[page] = request
     }
 
     private fun putBase(page: Int, tile: Tile) {
@@ -739,7 +761,7 @@ class PdfPagesView @JvmOverloads constructor(
                 existing.rect.right >= right - 1f && existing.rect.bottom >= bottom - 1f
             ) continue
 
-            pendingDetail.remove(i)?.cancel()
+            pendingDetail.remove(i)?.handle?.cancel()
             val bw = ((right - left) * zoom).roundToInt().coerceAtLeast(1)
             val bh = ((bottom - top) * zoom).roundToInt().coerceAtLeast(1)
             val bitmap = try {
@@ -755,8 +777,10 @@ class PdfPagesView @JvmOverloads constructor(
             val scale = pageScale[i] * z
             val offsetX = (left - margin) * z
             val offsetY = (top - pageTop[i]) * z
-            pendingDetail[i] = src.render(i, bitmap, scale, offsetX, offsetY) { ok ->
-                pendingDetail.remove(i)
+            val request = Request()
+            request.handle = src.render(i, bitmap, scale, offsetX, offsetY) { ok ->
+                request.finished = true
+                if (pendingDetail[i] === request) pendingDetail.remove(i)
                 if (!ok || source !== requestedFor || i >= pageCount || version != pageVersion[i] || z != zoom) {
                     bitmap.recycle()
                 } else {
@@ -765,15 +789,17 @@ class PdfPagesView @JvmOverloads constructor(
                     invalidate()
                 }
             }
+            if (!request.finished) pendingDetail[i] = request
         }
     }
 
     private fun cancelAll() {
         handler.removeCallbacks(detailRunnable)
-        for (c in pendingBase.values) c.cancel()
-        for (c in pendingDetail.values) c.cancel()
+        // Cancelling makes the source report back, which edits these maps: iterate over copies.
+        val running = ArrayList(pendingBase.values) + ArrayList(pendingDetail.values)
         pendingBase.clear()
         pendingDetail.clear()
+        for (r in running) r.handle?.cancel()
     }
 
     private fun recycleAll() {

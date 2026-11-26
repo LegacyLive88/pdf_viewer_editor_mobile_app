@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
@@ -417,6 +418,8 @@ class MainActivity : AppCompatActivity(), PdfPagesView.Listener {
         }
 
         fun show() {
+            // The point of the dialog is typing, so bring the keyboard up with it.
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
             dialog.show()
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { save() }
             views.editText.requestFocus()
