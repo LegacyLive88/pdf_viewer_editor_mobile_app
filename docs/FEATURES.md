@@ -100,11 +100,21 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   `aLargeDocumentOpensAndCanBeEditedOnALaterPage`,
   `aProtectedDocumentCanBeViewedAndSelectedButNotChanged`,
   `aCertificateEncryptedPdfIsRefusedCleanly`,
+  `afterFilesThatCannotBeOpenedTheNextDocumentStillOpens`,
   `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown` (also reads off the screen whether
   this Android version really draws the form field and the stamp),
   `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
 - **Not automated:** the system file picker and "Open with" from other apps (they belong to
   the system); return after process death; behaviour under memory pressure.
+
+> **Regression note.** The first on-device run on Android 7.0 crashed in native code when a
+> document was opened after another file had *failed* to open. It is a defect of that Android
+> version (fixed in Android 8): a renderer whose creation fails is still closed later by the
+> garbage collector, which throws off the platform's count of open documents, and the PDF
+> library is then shut down – or not started – at the wrong moment. `RendererFactory` hands
+> the lost count back by keeping one small spare renderer open for every failure. Guarded by
+> the device test `afterFilesThatCannotBeOpenedTheNextDocumentStillOpens`, which only proves
+> something when run on Android 7.
 
 > **Regression note.** The first on-device rotation test (Android 16) found that turning the
 > phone left the end of the previous page showing above the page being read: the place was

@@ -106,7 +106,7 @@ that shrank (PDFium then ignores objects), a cross-reference stream without its 
 
 ## 4. Device tests (`app/src/androidTest`)
 
-`ViewerDeviceTest` (19 tests) launches the real activity through an "Open with" intent, sends
+`ViewerDeviceTest` (20 tests) launches the real activity through an "Open with" intent, sends
 real touch events and checks pixels on screen, the clipboard and the file on disk. Screenshots
 of the key moments are written to the app's `files/device-test-screens/`.
 

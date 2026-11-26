@@ -60,7 +60,7 @@ object AnnotationProbe {
             file.writeBytes(document())
             val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
             val renderer = try {
-                PdfRenderer(pfd)
+                RendererFactory.create(pfd, dir)
             } catch (e: Throwable) {
                 pfd.close()
                 throw e

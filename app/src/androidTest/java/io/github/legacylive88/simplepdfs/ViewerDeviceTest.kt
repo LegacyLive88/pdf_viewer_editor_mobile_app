@@ -35,6 +35,7 @@ import io.github.legacylive88.simplepdfs.pdfcore.PdfSession
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
 import io.github.legacylive88.simplepdfs.render.AnnotationProbe
 import io.github.legacylive88.simplepdfs.render.PlatformRasterizer
+import io.github.legacylive88.simplepdfs.render.RendererFactory
 import io.github.legacylive88.simplepdfs.view.PdfPagesView
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.containsString
@@ -74,7 +75,7 @@ class ViewerDeviceTest {
         HardwareRendererCompat.setDrawingEnabled(true)
         // A slow emulator may be showing a system dialog ("System isn't responding"). It would
         // sit on top of the app and keep its window from ever getting the focus.
-        instrumentation.uiAutomation.executeShellCommand("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS").close()
+        shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
         dir.deleteRecursively()
         dir.mkdirs()
     }
@@ -85,6 +86,15 @@ class ViewerDeviceTest {
     }
 
     // --- helpers ----------------------------------------------------------------------------------
+
+    /**
+     * Runs a shell command and waits for it. Its output has to be read to the end before the
+     * pipe is closed: Android 7 kills the test run when a command cannot write its output.
+     */
+    private fun shell(command: String): String {
+        val pipe = instrumentation.uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(pipe).use { String(it.readBytes()) }
+    }
 
     private fun launch(fixture: String) {
         File(dir, "docs").mkdirs()
@@ -640,6 +650,43 @@ class ViewerDeviceTest {
         scenario?.close()
         launch("basic.pdf")
         assertEquals(2, state().pageCount)
+    }
+
+    @Test
+    fun afterFilesThatCannotBeOpenedTheNextDocumentStillOpens() {
+        // Android 7 miscounts its open documents after a failed open and then crashes in
+        // native code on a later, perfectly good document – once the garbage collector has
+        // finalized the half-built renderer. See RendererFactory.
+        val keptBefore = RendererFactory.keptAliveCount()
+        repeat(3) { round ->
+            File(dir, "docs").mkdirs()
+            file = File(File(dir, "docs"), "broken-$round.pdf")
+            file.writeText("this is not a pdf, attempt $round")
+            val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+                .setDataAndType(Uri.fromFile(file), "application/pdf")
+            scenario = ActivityScenario.launch(intent)
+            waitFor("failure reported", 60_000) { state().phase == Phase.FAILED }
+            scenario?.close()
+            // what used to do the damage
+            repeat(2) {
+                Runtime.getRuntime().gc()
+                System.runFinalization()
+                SystemClock.sleep(200)
+            }
+            launch("basic.pdf")
+            assertEquals(2, state().pageCount)
+            // and it really draws: there is ink where the title is
+            val title = locate(0, "Quarterly")
+            val ink = colourAt(0, title)
+            assertTrue("the title should be drawn (${Integer.toHexString(ink)})", (ink and 0xFF) < 0xE0)
+            scenario?.close()
+        }
+        val kept = RendererFactory.keptAliveCount() - keptBefore
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+            assertTrue("one renderer is kept open for every file that failed ($kept)", kept >= 3)
+        } else {
+            assertEquals("newer Android versions need no such thing", 0, RendererFactory.keptAliveCount())
+        }
     }
 
     @Test

@@ -35,6 +35,7 @@ that reads or changes the *content* of a PDF is done by an engine module that ha
 | **Edits are incremental updates** | The original bytes of the user's file are never rewritten – see [Saving](#saving). |
 | **Every save is verified by a second PDF implementation** | The engine writes with PdfBox; the result is only accepted if Android's PDFium opens it, can draw the changed pages and – after a paragraph edit – draws the page *identically to before* everywhere outside the edited paragraph. |
 | **The release build is not code-shrunk** | With R8 on, the on-device tests cannot run against the release APK. Unshrunk, the APK that ships is the one the whole device suite ran against. Costs 3.5 MB. See BUILD_AND_RELEASE.md → Size. |
+| **All platform renderers are created in one place** (`RendererFactory`) | Android 7 crashes some time after a renderer fails to open a file. The workaround – one spare renderer kept open per failure – only works if every creation goes through it. |
 | **No Bouncy Castle** | The PDF library's cryptography dependency (2 MB) is only used for certificate-encrypted PDFs, which Android's renderer cannot open anyway. It is excluded from the build. |
 
 ## The document life cycle
