@@ -105,7 +105,8 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   this Android version really draws the form field and the stamp),
   `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
 - **Not automated:** the system file picker and "Open with" from other apps (they belong to
-  the system); return after process death; behaviour under memory pressure.
+  the system); return after process death (checked by hand, see TESTING.md); behaviour under
+  memory pressure.
 
 > **Regression note.** The first on-device run on Android 7.0 crashed in native code when a
 > document was opened after another file had *failed* to open. It is a defect of that Android

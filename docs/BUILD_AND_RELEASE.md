@@ -92,9 +92,14 @@ keytool -genkeypair -keystore simplepdfs-release.jks -alias simplepdfs -keyalg R
 |---|---|---|
 | `test` | push to `main`, tags `v*`, manual | JVM tests, lint (both modules), cross-validation of written PDFs |
 | `build` | after `test` | release APK as a build artifact; attached to a GitHub release for tags |
-| `device-test` | tags `v*`, or manual with the box ticked | the on-device suite in an emulator |
+| `device-test` | tags `v*`, or manual with the box ticked | the on-device suite in two emulators: Android 7.0 (the oldest supported) and Android 14 |
 
 Pull requests are **not** built automatically; the workflow file says how to switch that on.
+
+State of the workflow: `test` and `build` have run on GitHub and passed (first on the merge of
+pull request #1). `device-test` has not been run on GitHub yet – the same suite was run by
+hand on emulators instead (see [TESTING.md](TESTING.md)) – so expect to give it a first
+manual run (Actions → Android → Run workflow, box ticked) before relying on it for a tag.
 
 Lint is part of the `test` job and fails it on errors:
 

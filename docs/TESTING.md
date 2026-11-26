@@ -133,13 +133,35 @@ Notes:
   emulator.
 - The system file picker, "create document" screen and share sheet are *not* driven: they
   belong to the system and differ per device. What the app hands to them is tested instead.
+- Before each test, stray system dialogs are dismissed. On a slow emulator a "System isn't
+  responding" dialog otherwise sits on top of the app and every test fails for lack of focus.
+- All tests of a run share one app process. That is deliberate: it is how the Android 7 crash
+  after a failed open was found (see FEATURES.md → Opening and viewing).
+
+### Where the suite has been run
+
+Release 1.0.1 – the signed APK itself, not a debug build – on three emulators:
+
+| Android | Image | Result |
+|---|---|---|
+| 7.0 (API 24), the oldest supported | `default`, x86_64 | 20 of 20 |
+| 14 (API 34) | `aosp_atd`, x86_64 | 20 of 20 |
+| 16 (API 36) | `aosp_atd`, x86_64 | 20 of 20 |
+
+It has **not** been run on a physical phone, and not on the versions in between. The runs on
+old and new versions were worth their time: Android 7 exposed a crash in the platform's
+renderer that newer versions do not have, and Android 16 exposed the rotation problem and
+showed that newer renderers draw form fields.
 
 ## What is not covered by any automated test
 
 - Whether a re-typeset paragraph *looks good* – checked by eye from renders. (That nothing
   *else* on the page changed is checked automatically, by pixel comparison.)
 - Two-finger pinch on real hardware; the system picker and share sheet; cloud storage
-  providers; Android versions other than the one the device tests ran on.
+  providers; physical phones; Android versions other than 7.0, 14 and 16.
+- Returning to the app after Android has killed it in the background. The document is
+  re-opened from its remembered address; this was checked by hand on the Android 14 emulator
+  (`am kill`, then back to the app: same document, same screen) but has no automated test.
 - Power loss during a save.
 - Very large files (hundreds of MB) and memory pressure.
 - Real-world PDFs beyond the fixture corpus. The corpus is broad but synthetic; paragraph
