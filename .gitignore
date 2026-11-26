@@ -25,3 +25,6 @@ signing.properties
 # Python
 __pycache__/
 *.pyc
+
+# Built deliverables (APK copies) are handed over outside the repository
+dist/

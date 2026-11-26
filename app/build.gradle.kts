@@ -54,8 +54,14 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Code shrinking (R8) is deliberately OFF. With it on, the on-device test suite
+            // cannot run against the release build (R8 removes library code the tests share
+            // with the app), so the binary that ships would be one that no device test has
+            // exercised. Unshrunk, the release APK is the debug code, release-signed: what is
+            // tested is what ships. The price is size (about 5 MB more).
+            // Before switching it on, read docs/BUILD_AND_RELEASE.md -> "Size and minification".
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
@@ -80,9 +86,6 @@ android {
             excludes += setOf(
                 "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
                 "META-INF/*.kotlin_module",
-                // Parameter tables of Bouncy Castle's post-quantum algorithms: 8 MB that no
-                // PDF ever needs (the library is only here to read encrypted PDFs).
-                "org/bouncycastle/pqc/**",
             )
         }
     }

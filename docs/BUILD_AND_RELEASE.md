@@ -31,7 +31,7 @@ Debug build (installs next to a release build, signed with the local debug key):
 ./gradlew :app:assembleDebug
 ```
 
-Release build (minified with R8):
+Release build:
 
 ```bash
 ./gradlew :app:assembleRelease
@@ -102,8 +102,7 @@ Lint is part of the `test` job and fails it on errors:
 ./gradlew :pdfcore:lintDebug :app:lintDebug
 ```
 
-It is expected to report no errors and only the "newer version available" notes. One library
-finding is switched off in `app/lint.xml` and `pdfcore/lint.xml`, with the reason given there.
+It is expected to report no errors and only the "newer version available" notes.
 
 ## Releasing a version
 
@@ -134,16 +133,40 @@ adb install -r app-release.apk
 
 ## Size and minification
 
-The release build runs R8. The app's own code and the AndroidX/Material libraries are shrunk;
-PdfBox-Android is kept whole (`pdfcore/consumer-rules.pro`) because it loads resources by name
-and uses reflection, and predictable behaviour matters more here than size. Most of the
-remaining size is the library's character maps and the bundled fonts.
+The release APK is about 10.5 MB. Roughly: 4.5 MB code (the PDF library, AndroidX, Material,
+Kotlin), 2.8 MB fonts that are written into edited PDFs, 1.6 MB character maps and font
+metrics of the PDF library, 1.5 MB resources.
+
+**Code shrinking (R8) is switched off** (`isMinifyEnabled = false` in `app/build.gradle.kts`).
+With it on the APK is about 2 MB smaller, but the on-device test suite cannot run against the
+release build: the tests share library code with the app (Kotlin, AndroidX), and R8 removes
+or renames what the app itself does not use, so the tests crash on start with
+`NoSuchMethodError`. A release that no device test can exercise was judged a bad trade for
+2 MB. Unshrunk, the release build is the same code as the debug build, signed with the release
+key, and the whole device suite runs against the very APK that ships:
+
+```bash
+./gradlew -PtestRelease :app:connectedReleaseAndroidTest
+```
+
+To switch shrinking on later: set `isMinifyEnabled` and `isShrinkResources` to `true`; the
+rules the app itself needs are already in `app/proguard-rules.pro` and
+`pdfcore/consumer-rules.pro`. Then either add keep rules for everything the device tests use
+from the libraries, or accept that the shrunk APK is checked by hand – and check it by hand,
+on a phone, before every release.
+
+**Bouncy Castle is left out** (`pdfcore/build.gradle.kts`). The PDF library declares this
+large cryptography library (about 4 MB in the APK) as a dependency, but only two of its
+classes use it, both for PDFs encrypted for the holder of a certificate. Such files cannot be
+opened by this app in any case, because Android's renderer cannot decrypt them. Password-
+encrypted files use Android's own cryptography. If certificate encryption is ever to be
+supported, remove the exclusion and add Bouncy Castle's licence to the notices.
 
 ## Third-party components
 
 | Component | Licence | Used for |
 |---|---|---|
-| PdfBox-Android 2.0.27.0 (+ Bouncy Castle 1.72) | Apache 2.0 (MIT-style for Bouncy Castle) | reading and writing PDF structure |
+| PdfBox-Android 2.0.27.0 | Apache 2.0 | reading and writing PDF structure |
 | Liberation Fonts 2.1.5 | SIL Open Font License 1.1 | text written into PDFs |
 | DejaVu Sans 2.37 | Bitstream Vera / public domain | fallback for symbols |
 | AndroidX, Material Components, Kotlin, kotlinx.coroutines | Apache 2.0 | app framework |

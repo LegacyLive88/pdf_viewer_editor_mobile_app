@@ -60,7 +60,8 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   test compares the measurement with what is really on the screen for a real document.
 - The app only detects that such annotations exist (`PdfSession.otherAnnotationKinds`); it
   does not draw them. Drawing them itself is possible future work.
-- Password-protected PDFs are not supported yet and are reported as such.
+- Password-protected PDFs are not supported yet and are reported as such. So are PDFs
+  encrypted for the holder of a certificate.
 - **Screen readers:** the bars, buttons, dialogs and messages are labelled, but the pages
   themselves are pictures to TalkBack – the text on them is not read out. Selecting by tapping
   words needs sight.
@@ -75,6 +76,7 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 - engine `ExtractionTest`: `basicDocumentIsSegmentedIntoItsParagraphs`,
   `pageRotationAndBoxesGiveTheDisplayedSize`, `structuralVariantsOpen`,
   `somethingThatIsNotAPdfIsRejectedCleanly`, `passwordProtectedDocumentAsksForPassword`,
+  `aCertificateEncryptedPdfIsRefusedCleanlyAndTheEngineCarriesOn`,
   `aLargeDocumentOpensAndAnyPageCanBeRead`
 - app `DocumentViewModelTest`: `openingADocumentShowsItAndThenMakesTextToolsAvailable`,
   `pagesOfDifferentSizesAreMeasuredInTheBackground`, `aFileThatIsNotAPdfIsReportedAndForgotten`,
@@ -97,6 +99,7 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   `aFileThatIsNotAPdfShowsAnErrorInsteadOfCrashing`,
   `aLargeDocumentOpensAndCanBeEditedOnALaterPage`,
   `aProtectedDocumentCanBeViewedAndSelectedButNotChanged`,
+  `aCertificateEncryptedPdfIsRefusedCleanly`,
   `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown` (also reads off the screen whether
   this Android version really draws the form field and the stamp),
   `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
@@ -466,8 +469,10 @@ the app.
   Font License asks that the font licence can be "easily viewed by the user".
 - The texts are kept **verbatim** in the repository: `app/src/main/assets/licenses/
   THIRD_PARTY_NOTICES.txt` (assembled from the `LICENSE` and `NOTICE` files inside the Apache
-  PDFBox and FontBox 2.0.27 jars and from Bouncy Castle's own licence class) and
-  `pdfcore/src/main/assets/fonts/LICENSE.txt` beside the fonts.
+  PDFBox and FontBox 2.0.27 jars) and `pdfcore/src/main/assets/fonts/LICENSE.txt` beside the
+  fonts.
+- Bouncy Castle, which the PDF library would normally bring along, is **not in the app** (see
+  BUILD_AND_RELEASE.md → Size), so its licence is not listed. A test guards the exclusion.
 - For display the hard line breaks inside paragraphs are removed (`OpenSourceNotices.reflow`),
   because text wrapped at 78 columns breaks a second time on a phone. No word is changed.
 - A test fails when a library is added to the build without being added to the notices.
@@ -482,9 +487,10 @@ the app.
   opens from the menu and shows the text; a new dependency cannot be added unnoticed.
 
 **Tested today**
-- app `OpenSourceNoticesTest` (5 tests): `wrappedLinesAreJoinedAndShortLinesKeepTheirBreak`,
+- app `OpenSourceNoticesTest` (6 tests): `wrappedLinesAreJoinedAndShortLinesKeepTheirBreak`,
   `copyrightStatementsAndDifferentlyIndentedLinesAreNeverRunTogether`,
   `reflowingTheRealLicencesChangesNoWord`, `everyComponentInTheAppIsNamedWithItsLicence`,
-  `everyLibraryTheBuildShipsIsCoveredByTheNotices`
+  `everyLibraryTheBuildShipsIsCoveredByTheNotices`,
+  `theOneLibraryThatIsLeftOutOnPurposeIsStillLeftOut`
 - device: `aboutShowsTheVersionAndTheOpenSourceLicences`
 - **Not automated:** whether the list of *indirect* dependencies is complete.

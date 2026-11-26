@@ -567,6 +567,45 @@ def make_variants():
     # form_stamp.pdf: annotations that are neither text markup nor links
     make_form_stamp(src, out("form_stamp.pdf"))
 
+    # encrypted_cert.pdf: claims certificate (public-key) encryption
+    make_cert_encrypted(src, out("encrypted_cert.pdf"))
+
+
+def make_cert_encrypted(src, dst):
+    """
+    A file that says it is encrypted for the holder of a certificate (the public-key security
+    handler, /Filter /Adobe.PubSec). Nothing in it is really encrypted: readers must give up
+    as soon as they see the handler, and that - a clean refusal - is what is tested. The app
+    does not bundle the cryptography library this handler needs.
+    """
+    import re
+    data = open(src, "rb").read()
+    m = re.search(rb"startxref\s+(\d+)\s+%%EOF\s*$", data)
+    size = re.findall(rb"/Size\s+(\d+)", data)
+    root = re.findall(rb"/Root\s+(\d+)\s+(\d+)\s+R", data)
+    ident = re.findall(rb"/ID\s*(\[[^\]]*\])", data)
+    if not m or not size or not root:
+        warn("cannot build encrypted_cert.pdf from " + src)
+        return
+    prev = int(m.group(1))
+    new_id = int(size[-1])
+    buf = bytearray(data)
+    if not buf.endswith(b"\n"):
+        buf += b"\n"
+    offset = len(buf)
+    recipient = b"3082" + b"00" * 30
+    buf += (b"%d 0 obj\n<< /Filter /Adobe.PubSec /SubFilter /adbe.pkcs7.s5 /V 4 /R 4 /Length 128 "
+            b"/CF << /DefaultCryptFilter << /CFM /AESV2 /Length 16 /EncryptMetadata true "
+            b"/Recipients [<%s>] >> >> /StmF /DefaultCryptFilter /StrF /DefaultCryptFilter >>\nendobj\n"
+            % (new_id, recipient))
+    xref = len(buf)
+    buf += b"xref\n%d 1\n%010d 00000 n \n" % (new_id, offset)
+    buf += b"trailer\n<< /Size %d /Root %d %d R /Encrypt %d 0 R /ID %s /Prev %d >>\nstartxref\n%d\n%%%%EOF\n" % (
+        new_id + 1, int(root[-1][0]), int(root[-1][1]), new_id,
+        ident[-1] if ident else b"[<0123456789abcdef0123456789abcdef> <0123456789abcdef0123456789abcdef>]", prev, xref)
+    with open(dst, "wb") as f:
+        f.write(buf)
+
 
 def make_form_stamp(src, dst):
     """

@@ -10,7 +10,7 @@ There are four layers. Each catches things the others cannot.
 | Device tests | The real app on real Android: platform renderer, touch input, the file on disk | `./gradlew :app:connectedDebugAndroidTest` | emulator or phone |
 
 Everything except the device tests runs on any machine with a JDK, in about a minute:
-85 engine tests and 67 app tests.
+86 engine tests and 68 app tests.
 
 ```bash
 ./gradlew :pdfcore:testDebugUnitTest :app:testDebugUnitTest
@@ -26,7 +26,7 @@ JVM tests using Robolectric, because PdfBox-Android needs Android classes.
 
 | Class | Tests | Covers |
 |---|---|---|
-| `ExtractionTest` | 16 | opening; lines and paragraphs for every producer; rotation and page boxes; invisible, clipped and scanned text; encrypted files; pages with form fields, stamps or notes |
+| `ExtractionTest` | 17 | opening; lines and paragraphs for every producer; rotation and page boxes; invisible, clipped and scanned text; encrypted files; pages with form fields, stamps or notes |
 | `SelectionTest` | 11 | two-point selection, word snapping, reading order, columns, hyphenation, search |
 | `HighlightTest` | 11 | writing, trimming and deleting highlights; foreign highlights; rollback |
 | `ParagraphEditTest` | 25 | replacing paragraphs: operators, forms, transforms, rotation, alignment, fitting, fonts, repeated edits, file structures, rollback |
@@ -49,7 +49,7 @@ each has its own habits:
 | `cairo` | Cairo | cross-reference streams, object streams |
 | `fpdf_unicode` | fpdf2 | Identity-H TrueType with accents, Cyrillic, Greek |
 | `matplotlib_type3` | matplotlib | Type 3 fonts |
-| `xref_stream`, `linearized`, `incremental`, `encrypted_owner`, `encrypted_user`, `annotated`, `form_stamp` | qpdf / by hand | file-structure variants; encryption; highlights "from another app"; a filled-in form field, a stamp and a note |
+| `xref_stream`, `linearized`, `incremental`, `encrypted_owner`, `encrypted_user`, `encrypted_cert`, `annotated`, `form_stamp` | qpdf / by hand | file-structure variants; encryption by password and by certificate; highlights "from another app"; a filled-in form field, a stamp and a note |
 
 Regenerate with `python3 tools/make_fixtures.py` (needs reportlab, pikepdf, fpdf2, matplotlib,
 LibreOffice, Chromium via Playwright, and poppler-utils; missing producers are skipped). The
@@ -64,7 +64,7 @@ fixtures are committed, so tests do not need any of that.
 | `PdfPagesViewTest` | 19 | page layout, scrolling, zoom limits and focus, render requests, tap and double-tap reporting, keeping the reader's place when the phone is turned |
 | `RenderComparisonTest` | 6 | the before/after picture comparison used to verify paragraph edits (plain JUnit) |
 | `AnnotationProbeTest` | 3 | the small PDF the app renders to find out which annotations the device's renderer draws |
-| `OpenSourceNoticesTest` | 5 | the licences screen names everything the app contains; a new library cannot be added without its licence (plain JUnit) |
+| `OpenSourceNoticesTest` | 6 | the licences screen names everything the app contains; a new library cannot be added without its licence (plain JUnit) |
 
 The view model tests use the **real engine and real files**; only the pixel renderer is
 replaced by `FakeRasterizer`, since Android's `PdfRenderer` does not exist on the JVM. After
@@ -106,13 +106,21 @@ that shrank (PDFium then ignores objects), a cross-reference stream without its 
 
 ## 4. Device tests (`app/src/androidTest`)
 
-`ViewerDeviceTest` (17 tests) launches the real activity through an "Open with" intent, sends
+`ViewerDeviceTest` (18 tests) launches the real activity through an "Open with" intent, sends
 real touch events and checks pixels on screen, the clipboard and the file on disk. Screenshots
 of the key moments are written to the app's `files/device-test-screens/`.
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
 ```
+
+The same suite against the release build – the APK that is actually handed out:
+
+```bash
+./gradlew -PtestRelease :app:connectedReleaseAndroidTest
+```
+
+To look at the screenshots of a debug run:
 
 ```bash
 adb exec-out run-as io.github.legacylive88.simplepdfs.debug tar c files/device-test-screens | tar x

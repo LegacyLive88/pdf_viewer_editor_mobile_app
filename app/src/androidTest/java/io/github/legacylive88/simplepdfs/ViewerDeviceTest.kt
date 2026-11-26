@@ -72,6 +72,9 @@ class ViewerDeviceTest {
     fun setUp() {
         // Slimmed-down test images (ATD) switch UI drawing off; the tests look at pixels.
         HardwareRendererCompat.setDrawingEnabled(true)
+        // A slow emulator may be showing a system dialog ("System isn't responding"). It would
+        // sit on top of the app and keep its window from ever getting the focus.
+        instrumentation.uiAutomation.executeShellCommand("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS").close()
         dir.deleteRecursively()
         dir.mkdirs()
     }
@@ -559,6 +562,42 @@ class ViewerDeviceTest {
     }
 
     @Test
+    fun aCertificateEncryptedPdfIsRefusedCleanly() {
+        // The app carries no cryptography library of its own (Bouncy Castle is excluded from
+        // the build); certificate-encrypted PDFs are simply refused.
+        try {
+            Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider")
+            throw AssertionError("Bouncy Castle is in the app again: add its licence to the notices, or exclude it")
+        } catch (_: ClassNotFoundException) {
+            // as intended
+        }
+        File(dir, "docs").mkdirs()
+        file = File(File(dir, "docs"), "encrypted_cert.pdf")
+        instrumentation.context.assets.open("fixtures/encrypted_cert.pdf").use { input ->
+            FileOutputStream(file).use { input.copyTo(it) }
+        }
+        // the engine on its own: a plain refusal, not a crash for want of the library
+        try {
+            PdfSession.open(context, file, File(dir, "cert-work")).close()
+            throw AssertionError("a certificate-encrypted file must not open")
+        } catch (_: io.github.legacylive88.simplepdfs.pdfcore.PdfOpenException) {
+            // as intended
+        }
+        // and the app as a whole
+        val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+            .setDataAndType(Uri.fromFile(file), "application/pdf")
+        scenario = ActivityScenario.launch(intent)
+        waitFor("failure reported", 60_000) { state().phase == Phase.FAILED }
+        assertTrue(state().error == R.string.err_password || state().error == R.string.err_open_failed)
+        onView(withId(R.id.homeOpen)).check(matches(isDisplayed()))
+        screenshot("15-certificate-encrypted")
+        // the app is fine afterwards
+        scenario?.close()
+        launch("basic.pdf")
+        assertEquals(2, state().pageCount)
+    }
+
+    @Test
     fun aLargeDocumentOpensAndCanBeEditedOnALaterPage() {
         launch("big.pdf")
         assertEquals(300, state().pageCount)
@@ -677,7 +716,7 @@ class ViewerDeviceTest {
                     isDisplayed(),
                     withText(containsString("Apache License")),
                     withText(containsString("PdfBox-Android")),
-                    withText(containsString("Bouncy Castle")),
+                    withText(containsString("Material Components for Android")),
                     withText(containsString("SIL OPEN FONT LICENSE")),
                     withText(containsString("DejaVu")),
                 ),

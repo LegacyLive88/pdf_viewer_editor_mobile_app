@@ -34,8 +34,8 @@ the text in the PDF – the old text is removed, not covered up.
   layer can be selected, copied and highlighted, but not edited.
 - **Read-only files** (for example straight from an e-mail): edits are kept in the app and a
   banner offers "Save as…" so they can be stored in a file of your own.
-- **Protected PDFs:** password-protected files cannot be opened yet; encrypted files that open
-  without a password are view-only.
+- **Protected PDFs:** files locked with a password or a certificate cannot be opened yet;
+  encrypted files that open without a password are view-only.
 - **Stamps, notes and form entries.** Android's built-in renderer does not draw stamps,
   sticky notes or drawings that were added on top of a page, and before Android 15 it does not
   draw what was typed into form fields either. The app tells you when a PDF contains something

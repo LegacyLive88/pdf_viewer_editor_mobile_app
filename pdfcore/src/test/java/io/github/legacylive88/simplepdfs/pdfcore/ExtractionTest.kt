@@ -232,6 +232,24 @@ class ExtractionTest : PdfTestBase() {
     }
 
     @Test
+    fun aCertificateEncryptedPdfIsRefusedCleanlyAndTheEngineCarriesOn() {
+        // Encrypted for the holder of a certificate (public-key security handler). The app
+        // does not bundle the library this needs; either way the answer is a plain refusal.
+        val file = fixture("encrypted_cert.pdf")
+        try {
+            PdfSession.open(context, file, File(file.parentFile, "work"))
+            fail("expected a failure")
+        } catch (e: PdfPasswordRequiredException) {
+            fail("no password would help here")
+        } catch (e: PdfOpenException) {
+            // expected
+        }
+        // nothing is left in a bad state: ordinary and password-protected files still open
+        assertEquals(2, open("basic.pdf").pageCount)
+        assertTrue(open("encrypted_owner.pdf").capabilities.encrypted)
+    }
+
+    @Test
     fun somethingThatIsNotAPdfIsRejectedCleanly() {
         val file = File(tmp.newFolder(), "not.pdf")
         file.writeText("This is just a text file, not a PDF at all.\n".repeat(20))

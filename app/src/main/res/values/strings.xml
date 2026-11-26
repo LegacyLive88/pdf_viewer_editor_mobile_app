@@ -76,7 +76,7 @@
     <string name="banner_not_in_original">This file was opened read-only, so your changes are only kept inside the app.</string>
     <string name="action_save_as">Save as…</string>
     <string name="err_open_failed">This file could not be opened as a PDF.</string>
-    <string name="err_password">This PDF is password protected. Password-protected PDFs are not supported yet.</string>
+    <string name="err_password">This PDF is locked with a password or a certificate. Locked PDFs cannot be opened yet.</string>
     <string name="page_indicator">Page %1$d of %2$d</string>
     <string name="pages_description">PDF pages</string>
 
