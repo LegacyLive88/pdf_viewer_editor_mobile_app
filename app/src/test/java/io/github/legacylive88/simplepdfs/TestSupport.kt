@@ -12,6 +12,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
+import io.github.legacylive88.simplepdfs.pdfcore.AnnotationKind
 import io.github.legacylive88.simplepdfs.pdfcore.SaveVerifier
 import io.github.legacylive88.simplepdfs.render.PageRasterizer
 import io.github.legacylive88.simplepdfs.render.PasswordProtectedException
@@ -29,7 +30,7 @@ class FakeRasterizer(
     val file: File,
     private val sizes: List<FloatArray>,
     private val log: MutableList<String>,
-    override val drawsAnnotations: Boolean = false,
+    override val drawnAnnotationKinds: Set<AnnotationKind> = emptySet(),
 ) : PageRasterizer {
     override val pageCount: Int get() = sizes.size
     override fun pageSize(pageIndex: Int): FloatArray = sizes[pageIndex]
@@ -44,8 +45,8 @@ class FakeRasterizer(
     class Factory : PageRasterizer.Factory {
         val log: MutableList<String> = ArrayList()
 
-        /** Like Android 15 and newer when true; like older versions when false. */
-        var drawsAnnotations: Boolean = false
+        /** Empty like Android 14 and older; form fields like Android 15 and newer. */
+        var drawnAnnotationKinds: Set<AnnotationKind> = emptySet()
         override fun open(file: File): PageRasterizer {
             val sizes = try {
                 PDDocument.load(file).use { doc ->
@@ -65,7 +66,7 @@ class FakeRasterizer(
                 throw IOException("not a PDF", e)
             }
             synchronized(log) { log.add("open ${file.name}") }
-            return FakeRasterizer(file, sizes, log, drawsAnnotations)
+            return FakeRasterizer(file, sizes, log, drawnAnnotationKinds)
         }
     }
 }

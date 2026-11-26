@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.legacylive88.simplepdfs.doc.DocumentSource
 import io.github.legacylive88.simplepdfs.doc.RecentDocuments
+import io.github.legacylive88.simplepdfs.pdfcore.AnnotationKind
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupInfo
 import io.github.legacylive88.simplepdfs.pdfcore.NotEditableReason
 import io.github.legacylive88.simplepdfs.pdfcore.ParagraphInfo
@@ -291,19 +292,37 @@ class DocumentViewModel(
     }
 
     /**
-     * A filled-in form that looks empty would mislead its reader. Where the renderer does not
-     * draw annotations, say so once when such a document is opened.
+     * A filled-in form that looks empty, or a page whose "Approved" stamp is missing, would
+     * mislead its reader. When a document contains things the renderer leaves out, name them
+     * once as the document is opened.
      */
     private suspend fun warnAboutContentThatIsNotShown(d: OpenDocument, session: PdfSession) {
-        if (d.rasterizer.drawsAnnotations) return
-        val pages = withContext(engineThread) {
+        val present = withContext(engineThread) {
             try {
-                session.pagesWithOtherAnnotations()
+                session.otherAnnotationKinds()
             } catch (_: Exception) {
-                emptyList() // closed in the meantime
+                emptySet() // closed in the meantime
             }
         }
-        if (doc === d && pages.isNotEmpty()) message(R.string.msg_annotations_not_shown, long = true)
+        val missing = present - d.rasterizer.drawnAnnotationKinds
+        if (doc !== d || missing.isEmpty()) return
+        val names = AnnotationKind.entries.filter { it in missing }.map { kind ->
+            getApplication<Application>().getString(
+                when (kind) {
+                    AnnotationKind.FORM_FIELD -> R.string.kind_form_fields
+                    AnnotationKind.NOTE -> R.string.kind_notes
+                    AnnotationKind.STAMP -> R.string.kind_stamps
+                    AnnotationKind.DRAWING -> R.string.kind_drawings
+                    AnnotationKind.OTHER -> R.string.kind_other
+                },
+            )
+        }
+        val list = if (names.size == 1) {
+            names[0]
+        } else {
+            getApplication<Application>().getString(R.string.list_and, names.dropLast(1).joinToString(", "), names.last())
+        }
+        message(R.string.msg_annotations_not_shown, list, long = true)
     }
 
     /** Closes the document and returns to the start screen. */

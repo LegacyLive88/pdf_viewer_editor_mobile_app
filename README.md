@@ -36,9 +36,10 @@ the text in the PDF – the old text is removed, not covered up.
   banner offers "Save as…" so they can be stored in a file of your own.
 - **Protected PDFs:** password-protected files cannot be opened yet; encrypted files that open
   without a password are view-only.
-- **Older Android versions** (14 and below) do not show filled-in form fields, stamps or
-  sticky notes, because Android's built-in renderer does not draw them there. The app says so
-  when such a PDF is opened. Highlights, underlines and strike-outs are always shown.
+- **Stamps, notes and form entries.** Android's built-in renderer does not draw stamps,
+  sticky notes or drawings that were added on top of a page, and before Android 15 it does not
+  draw what was typed into form fields either. The app tells you when a PDF contains something
+  it cannot show. Highlights, underlines and strike-outs are always shown.
 - There is **no undo**: saving is instant.
 
 The reasoning behind each of these is in [docs/FEATURES.md](docs/FEATURES.md).

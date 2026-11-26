@@ -129,6 +129,28 @@ class MarkupInfo internal constructor(
     val quads: List<Quad>,
 )
 
+/**
+ * Kinds of annotation, other than text markup, that put something on a page. The engine only
+ * reports that they exist ([PdfSession.otherAnnotationKinds]); it does not draw them. A viewer
+ * whose renderer leaves some of them out can then tell the reader so.
+ */
+enum class AnnotationKind {
+    /** Form fields, including the values typed into them. */
+    FORM_FIELD,
+
+    /** Sticky notes and text typed onto the page. */
+    NOTE,
+
+    /** Rubber stamps ("Approved", signatures placed as pictures…). */
+    STAMP,
+
+    /** Freehand ink, lines, rectangles, circles, polygons. */
+    DRAWING,
+
+    /** Anything else: attachments, media, redaction marks… */
+    OTHER,
+}
+
 /** Result of [PdfSession.replaceParagraph]. */
 class ParagraphEditResult internal constructor(
     /** False when the text was identical and nothing was written. */

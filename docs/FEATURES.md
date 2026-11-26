@@ -34,11 +34,13 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   the first. For the usual uniform document nothing moves.
 - Each visible page has a bitmap at screen width; when zoomed in, the visible part is rendered
   again at the exact zoom. Memory use therefore does not grow with zoom or page count.
-- **The app says when it cannot show something.** Android's renderer draws no annotations
-  before Android 15, so on those versions the filled-in values of form fields, stamps and
-  sticky notes are missing from the page. A filled-in form that looks empty would mislead its
-  reader, so opening such a PDF shows a message saying so. (Highlights, underlines and
-  strike-outs are drawn by the app itself on every version.)
+- **The app says when it cannot show something.** Android's renderer leaves out things that
+  were added on top of a page: stamps, sticky notes and drawings on every Android version,
+  and before Android 15 also whatever was typed into form fields. A filled-in form that looks
+  empty, or a page missing its "Approved" stamp, would mislead its reader. So when a PDF
+  contains such things, a message names them as it opens ("This PDF contains notes and
+  stamps, which this app cannot display. Parts of a page may look empty."). Highlights,
+  underlines and strike-outs are drawn by the app itself and are always shown.
 - **Nothing is backed up or moved to a new phone** (`allowBackup="false"` plus
   `res/xml/data_extraction_rules.xml` for Android 12+). The app's storage holds working copies
   of the user's documents, which are private, and links to recent documents, which only work
@@ -46,11 +48,14 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 
 **Assumptions**
 - The device has enough free cache space for a copy of the document (two after the first edit).
-- Android's renderer does not draw annotations before Android 15. The app draws text markup
-  itself; **other annotation types (form field values, stamps, notes) are not shown on Android
-  14 and older** – checked on the Android 14 and Android 7 emulators with a test file. The
-  app only detects that such annotations exist (`PdfSession.pagesWithOtherAnnotations`); it
-  does not draw them.
+- What the renderer draws is **measured on the device**, not looked up by Android version –
+  the renderer is a system component that is updated on its own. Once per run the app renders
+  a tiny PDF it carries in code (`AnnotationProbe`: six black squares on a white page, each
+  square a different type of annotation) and sees which squares come out. On the emulators
+  used for testing, Android 7 and 14 draw none and Android 16 draws form fields only. A device
+  test compares the measurement with what is really on the screen for a real document.
+- The app only detects that such annotations exist (`PdfSession.otherAnnotationKinds`); it
+  does not draw them. Drawing them itself is possible future work.
 - Password-protected PDFs are not supported yet and are reported as such.
 - **Screen readers:** the bars, buttons, dialogs and messages are labelled, but the pages
   themselves are pictures to TalkBack – the text on them is not read out. Selecting by tapping
@@ -75,15 +80,19 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   `visiblePagesAndTheNextOneAreRenderedAtTheWidthOfTheView`,
   `aRequestThatIsCancelledAndReplacedIsNotMistakenForItsReplacement`, `scrollingStopsAtTheEndsAndReportsThePage`,
   `newPageSizesKeepTheReaderOnTheSamePage`, `withoutADocumentNothingHappens`
-- engine `ExtractionTest.pagesWithFormFieldsStampsOrNotesAreReported`
-- app `DocumentViewModelTest`: `aDocumentWithFormFieldsOrStampsSaysThatTheyCannotBeShown`,
-  `whereTheRendererDrawsAnnotationsNothingNeedsSaying`
+- engine `ExtractionTest.formFieldsStampsAndNotesAreReportedByKind`
+- app `DocumentViewModelTest`: `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown`,
+  `onlyWhatTheRendererLeavesOutIsMentioned`
+- app `AnnotationProbeTest` (3 tests): the probe document is strictly well-formed and holds
+  one annotation of each type; squares are read as the right kinds
+- cross-check: the probe document in qpdf, PDFium (four ways: without annotations, with them,
+  with the form module only, with both) and MuPDF
 - device: `opensADocumentAndDrawsItsPages` (checks real pixels: white paper, ink on the title),
   `aFileThatIsNotAPdfShowsAnErrorInsteadOfCrashing`,
   `aLargeDocumentOpensAndCanBeEditedOnALaterPage`,
   `aProtectedDocumentCanBeViewedAndSelectedButNotChanged`,
-  `aDocumentWithFormFieldsOrStampsSaysSoWhereAndroidCannotDrawThem` (also checks on the
-  screen whether this Android version really draws the stamp),
+  `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown` (also reads off the screen whether
+  this Android version really draws the form field and the stamp),
   `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
 - **Not automated:** the system file picker and "Open with" from other apps (they belong to
   the system); return after process death; behaviour under memory pressure.

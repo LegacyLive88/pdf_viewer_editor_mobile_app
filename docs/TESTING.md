@@ -10,7 +10,7 @@ There are four layers. Each catches things the others cannot.
 | Device tests | The real app on real Android: platform renderer, touch input, the file on disk | `./gradlew :app:connectedDebugAndroidTest` | emulator or phone |
 
 Everything except the device tests runs on any machine with a JDK, in about a minute:
-85 engine tests and 61 app tests.
+85 engine tests and 64 app tests.
 
 ```bash
 ./gradlew :pdfcore:testDebugUnitTest :app:testDebugUnitTest
@@ -63,6 +63,7 @@ fixtures are committed, so tests do not need any of that.
 | `DocumentSourceTest` | 7 | writing only the tail vs the whole file, read-only detection, recent documents |
 | `PdfPagesViewTest` | 16 | page layout, scrolling, zoom limits and focus, render requests, tap and double-tap reporting |
 | `RenderComparisonTest` | 6 | the before/after picture comparison used to verify paragraph edits (plain JUnit) |
+| `AnnotationProbeTest` | 3 | the small PDF the app renders to find out which annotations the device's renderer draws |
 | `OpenSourceNoticesTest` | 5 | the licences screen names everything the app contains; a new library cannot be added without its licence (plain JUnit) |
 
 The view model tests use the **real engine and real files**; only the pixel renderer is
@@ -85,7 +86,9 @@ implementations that share no code with the engine:
   page-to-device mapping, which independently verifies rotation and crop-box handling – and
   when the page is rendered the box is tinted while the text in it is still dark;
 - rendered by **PDFium**, an edited page is pixel-identical to the original everywhere outside
-  the edited paragraph, and pages that were not edited are identical altogether.
+  the edited paragraph, and pages that were not edited are identical altogether;
+- the app's renderer self-test document (written by `AnnotationProbeTest`) is valid and each
+  of its squares appears exactly when a renderer draws that type of annotation.
 
 ```bash
 pip install pypdfium2 pymupdf pikepdf numpy pillow

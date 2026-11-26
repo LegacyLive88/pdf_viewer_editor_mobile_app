@@ -3,6 +3,7 @@ package io.github.legacylive88.simplepdfs
 import android.app.Application
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import io.github.legacylive88.simplepdfs.pdfcore.AnnotationKind
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupKind
 import io.github.legacylive88.simplepdfs.pdfcore.PdfSession
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
@@ -157,11 +158,14 @@ class DocumentViewModelTest {
     }
 
     @Test
-    fun aDocumentWithFormFieldsOrStampsSaysThatTheyCannotBeShown() {
+    fun aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown() {
         // Android's renderer draws no annotations before Android 15 (the fake behaves the same)
         open("form_stamp.pdf")
         awaitMain("notice") { messages().contains(R.string.msg_annotations_not_shown) }
-        assertEquals("said once", 1, messages().count { it == R.string.msg_annotations_not_shown })
+        val notices = events.filterIsInstance<UiEvent.Message>().filter { it.text == R.string.msg_annotations_not_shown }
+        assertEquals("said once", 1, notices.size)
+        assertEquals("filled-in form fields, notes and stamps", notices[0].argument)
+        assertTrue("stays up long enough to be read", notices[0].long)
 
         // highlights are drawn by the app itself and ordinary documents have nothing to miss
         events.clear()
@@ -175,8 +179,16 @@ class DocumentViewModelTest {
     }
 
     @Test
-    fun whereTheRendererDrawsAnnotationsNothingNeedsSaying() {
-        rasterizers.drawsAnnotations = true // Android 15 and newer
+    fun onlyWhatTheRendererLeavesOutIsMentioned() {
+        // Android 15 and newer draw form fields, but still no stamps or notes
+        rasterizers.drawnAnnotationKinds = setOf(AnnotationKind.FORM_FIELD)
+        open("form_stamp.pdf")
+        awaitMain("notice") { messages().contains(R.string.msg_annotations_not_shown) }
+        assertEquals("notes and stamps", lastEvent<UiEvent.Message>()!!.argument)
+
+        // a renderer that draws everything leaves nothing to say
+        events.clear()
+        rasterizers.drawnAnnotationKinds = AnnotationKind.entries.toSet()
         open("form_stamp.pdf")
         select(0, "Sales", "trend")
         idle()

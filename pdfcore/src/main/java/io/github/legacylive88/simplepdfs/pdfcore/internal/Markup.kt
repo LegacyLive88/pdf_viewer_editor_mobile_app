@@ -11,6 +11,7 @@ import com.tom_roush.pdfbox.cos.COSStream
 import com.tom_roush.pdfbox.cos.COSString
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
+import io.github.legacylive88.simplepdfs.pdfcore.AnnotationKind
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupInfo
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupKind
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
@@ -54,18 +55,24 @@ internal object Markup {
     private fun annotations(page: PDPage): COSArray? = page.cosObject.getDictionaryObject(COSName.ANNOTS) as? COSArray
 
     /**
-     * True when the page carries annotations that put something on the page other than text
-     * markup: form fields, stamps, notes, free text, drawings, signatures… Links and pop-ups
-     * draw nothing, and hidden or empty annotations cannot be seen anyway.
+     * Adds to [into] the kinds of annotation on the page that put something on it other than
+     * text markup: form fields, notes, stamps, drawings… Links and pop-ups draw nothing, and
+     * hidden or empty annotations cannot be seen anyway.
      */
-    fun hasOtherAnnotations(page: PDPage): Boolean {
-        val array = annotations(page) ?: return false
+    fun otherAnnotationKinds(page: PDPage, into: MutableSet<AnnotationKind>) {
+        val array = annotations(page) ?: return
         for (i in 0 until array.size()) {
             val dict = array.getObject(i) as? COSDictionary ?: continue
             if (kindOf(dict) != null) continue
-            when (dict.getNameAsString(COSName.SUBTYPE)) {
+            val kind = when (dict.getNameAsString(COSName.SUBTYPE)) {
                 null, "Link", "Popup" -> continue
+                "Widget" -> AnnotationKind.FORM_FIELD
+                "Text", "FreeText" -> AnnotationKind.NOTE
+                "Stamp" -> AnnotationKind.STAMP
+                "Ink", "Line", "Square", "Circle", "Polygon", "PolyLine" -> AnnotationKind.DRAWING
+                else -> AnnotationKind.OTHER
             }
+            if (kind in into) continue
             val flags = dict.getInt(COSName.F, 0)
             if (flags and 2 != 0 || flags and 32 != 0) continue // Hidden / NoView
             val rect = dict.getDictionaryObject(COSName.RECT) as? COSArray
@@ -73,9 +80,8 @@ internal object Markup {
                 val v = FloatArray(4) { k -> (rect.getObject(k) as? COSNumber)?.floatValue() ?: 0f }
                 if (v[0] == v[2] || v[1] == v[3]) continue // no area, e.g. an invisible signature field
             }
-            return true
+            into.add(kind)
         }
-        return false
     }
 
     // --- reading ------------------------------------------------------------------------------

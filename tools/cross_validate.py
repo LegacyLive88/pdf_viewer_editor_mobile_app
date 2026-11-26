@@ -299,6 +299,55 @@ def check(json_path):
     mu.close()
 
 
+def check_probe():
+    """
+    The six-square PDF the app renders to find out which annotations a device's renderer draws
+    (app: AnnotationProbe). Written by AnnotationProbeTest. It only tells the truth if every
+    square is an annotation that other renderers do draw, and nothing is black without them.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "build", "probe", "annotation-probe.pdf")
+    if not os.path.exists(path):
+        return False
+    name = "annotation-probe.pdf"
+    try:
+        with pikepdf.open(path, attempt_recovery=False) as pdf:
+            problems = pdf.check_pdf_syntax()
+            if problems:
+                fail(name, "qpdf reports: %s" % problems)
+    except Exception as e:  # noqa: BLE001
+        fail(name, "qpdf cannot open it without recovery: %r" % e)
+        return True
+
+    def squares(image):
+        a = np.asarray(image.convert("RGB")).astype(int)
+        return [bool(a[5, 5 + 10 * k].sum() < 384) for k in range(6)]
+
+    doc = pdfium.PdfDocument(path)
+    expectations = [
+        ("without annotations", dict(draw_annots=False, may_draw_forms=False), [False] * 6),
+        ("with annotations", dict(draw_annots=True, may_draw_forms=False), [False] + [True] * 5),
+    ]
+    for label, options, expected in expectations:
+        got = squares(doc[0].render(scale=1, **options).to_pil())
+        if got != expected:
+            fail(name, "PDFium %s draws squares %s, expected %s" % (label, got, expected))
+    doc = pdfium.PdfDocument(path)
+    doc.init_forms()
+    for label, options, expected in [
+        ("with the form module only", dict(draw_annots=False, may_draw_forms=True), [True] + [False] * 5),
+        ("with annotations and the form module", dict(draw_annots=True, may_draw_forms=True), [True] * 6),
+    ]:
+        got = squares(doc[0].render(scale=1, **options).to_pil())
+        if got != expected:
+            fail(name, "PDFium %s draws squares %s, expected %s" % (label, got, expected))
+    pix = pymupdf.open(path)[0].get_pixmap()
+    a = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n).astype(int)
+    got = [bool(a[5, 5 + 10 * k, :3].sum() < 384) for k in range(6)]
+    if got != [True] * 6:
+        fail(name, "MuPDF draws squares %s, expected all six" % got)
+    return True
+
+
 def main():
     specs = []
     for dirpath, _, files in os.walk(ROOT):
@@ -314,6 +363,10 @@ def main():
         except Exception as e:  # noqa: BLE001
             fail(os.path.relpath(s, ROOT), "validator crashed: %r" % e)
     print("Cross-validated %d files with qpdf, PDFium, MuPDF%s." % (checked, " and Poppler" if PDFTOTEXT else ""))
+    if check_probe():
+        print("The renderer self-test document behaves as designed in qpdf, PDFium and MuPDF.")
+    else:
+        print("(annotation-probe.pdf not found - run the app unit tests to check it too)")
     if failures:
         print("%d PROBLEM(S):" % len(failures))
         for f in failures:

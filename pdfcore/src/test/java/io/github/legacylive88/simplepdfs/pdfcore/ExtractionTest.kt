@@ -254,16 +254,16 @@ class ExtractionTest : PdfTestBase() {
     }
 
     @Test
-    fun pagesWithFormFieldsStampsOrNotesAreReported() {
+    fun formFieldsStampsAndNotesAreReportedByKind() {
         // page 1: a filled-in form field, a stamp and a note; page 2: only a link and a hidden stamp
         val s = open("form_stamp.pdf")
-        assertEquals(listOf(0), s.pagesWithOtherAnnotations())
+        assertEquals(setOf(AnnotationKind.FORM_FIELD, AnnotationKind.STAMP, AnnotationKind.NOTE), s.otherAnnotationKinds())
         // the annotations do not disturb the text tools
         assertTrue(s.pageTextContent(0).startsWith("Quarterly Report"))
         // text markup is drawn by the app itself, so it does not count
-        assertEquals(emptyList<Int>(), open("annotated.pdf").pagesWithOtherAnnotations())
-        assertEquals(emptyList<Int>(), open("basic.pdf").pagesWithOtherAnnotations())
-        assertEquals(emptyList<Int>(), open("big.pdf").pagesWithOtherAnnotations())
+        assertEquals(emptySet<AnnotationKind>(), open("annotated.pdf").otherAnnotationKinds())
+        assertEquals(emptySet<AnnotationKind>(), open("basic.pdf").otherAnnotationKinds())
+        assertEquals(emptySet<AnnotationKind>(), open("big.pdf").otherAnnotationKinds())
     }
 
     @Test

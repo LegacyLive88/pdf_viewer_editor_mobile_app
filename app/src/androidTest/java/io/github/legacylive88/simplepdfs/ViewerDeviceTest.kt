@@ -26,12 +26,14 @@ import androidx.test.espresso.matcher.ViewMatchers.Visibility
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.graphics.HardwareRendererCompat
+import io.github.legacylive88.simplepdfs.pdfcore.AnnotationKind
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupKind
 import io.github.legacylive88.simplepdfs.pdfcore.PageChange
 import io.github.legacylive88.simplepdfs.pdfcore.PageSize
 import io.github.legacylive88.simplepdfs.pdfcore.PdfPoint
 import io.github.legacylive88.simplepdfs.pdfcore.PdfSession
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
+import io.github.legacylive88.simplepdfs.render.AnnotationProbe
 import io.github.legacylive88.simplepdfs.render.PlatformRasterizer
 import io.github.legacylive88.simplepdfs.view.PdfPagesView
 import org.hamcrest.Matchers.allOf
@@ -606,31 +608,34 @@ class ViewerDeviceTest {
     }
 
     @Test
-    fun aDocumentWithFormFieldsOrStampsSaysSoWhereAndroidCannotDrawThem() {
-        // Page 1 of the fixture carries a filled-in form field, a red "APPROVED" stamp and a note.
+    fun aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown() {
+        // Page 1 of the fixture carries a filled-in form field on a pale blue box, a red
+        // "APPROVED" stamp and a note.
         launch("form_stamp.pdf")
-        val drawsAnnotations = PlatformRasterizer.DRAWS_ANNOTATIONS
-        var noticeSeen = false
-        val end = SystemClock.uptimeMillis() + 5_000
-        while (SystemClock.uptimeMillis() < end && !noticeSeen) {
-            noticeSeen = try {
-                onView(withText(R.string.msg_annotations_not_shown)).check(matches(isDisplayed())); true
+        // what the app measured about this device's renderer when it opened the document
+        val drawn = AnnotationProbe.drawnKinds(dir)
+        val expected = context.getString(
+            R.string.msg_annotations_not_shown,
+            if (AnnotationKind.FORM_FIELD in drawn) "notes and stamps" else "filled-in form fields, notes and stamps",
+        )
+        waitFor("the notice names what is missing", 5_500) {
+            try {
+                onView(withText(expected)).check(matches(isDisplayed())); true
             } catch (_: Throwable) {
-                SystemClock.sleep(150); false
+                false
             }
         }
         screenshot("13-form-and-stamp")
 
-        // What this device's renderer really does: is the stamp's red frame on the screen?
+        // What this device's renderer really does, read off the screen.
         val height = readFile { it.pageSize(0).height }
-        val onTheFrame = colourAt(0, floatArrayOf(331f, height - 431f))
-        val red = ((onTheFrame shr 16) and 0xFF) - ((onTheFrame shr 8) and 0xFF) > 40
-        assertEquals(
-            "PlatformRasterizer.drawsAnnotations must match what Android draws here " +
-                "(API ${android.os.Build.VERSION.SDK_INT}, colour ${Integer.toHexString(onTheFrame)})",
-            drawsAnnotations, red,
-        )
-        assertEquals("the notice appears exactly when something is not shown", !drawsAnnotations, noticeSeen)
+        val inTheField = colourAt(0, floatArrayOf(250f, height - 431f))   // pale blue if the field is drawn
+        val onTheStamp = colourAt(0, floatArrayOf(331f, height - 431f))   // red frame if the stamp is drawn
+        val fieldDrawn = (inTheField and 0xFF) - ((inTheField shr 16) and 0xFF) > 12
+        val stampDrawn = ((onTheStamp shr 16) and 0xFF) - ((onTheStamp shr 8) and 0xFF) > 40
+        val what = "API ${android.os.Build.VERSION.SDK_INT}: field ${Integer.toHexString(inTheField)}, stamp ${Integer.toHexString(onTheStamp)}"
+        assertEquals("form fields: the probe must agree with what Android draws ($what)", AnnotationKind.FORM_FIELD in drawn, fieldDrawn)
+        assertEquals("stamps: the probe must agree with what Android draws ($what)", AnnotationKind.STAMP in drawn, stampDrawn)
     }
 
     @Test

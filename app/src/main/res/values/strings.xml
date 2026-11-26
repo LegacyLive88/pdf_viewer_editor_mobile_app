@@ -58,7 +58,14 @@
     <string name="msg_preparing_text">Getting the text ready…</string>
     <string name="msg_text_unavailable">Text tools are not available for this document. It can still be viewed, shared and copied.</string>
     <string name="msg_protected">This PDF is protected and cannot be changed</string>
-    <string name="msg_annotations_not_shown">This PDF contains form fields, stamps or notes. This version of Android cannot display them, so parts of it may look empty.</string>
+    <!-- %1$s is a list such as "stamps and notes" -->
+    <string name="msg_annotations_not_shown">This PDF contains %1$s, which this app cannot display. Parts of a page may look empty.</string>
+    <string name="kind_form_fields">filled-in form fields</string>
+    <string name="kind_notes">notes</string>
+    <string name="kind_stamps">stamps</string>
+    <string name="kind_drawings">drawings</string>
+    <string name="kind_other">other annotations</string>
+    <string name="list_and">%1$s and %2$s</string>
     <string name="msg_edit_failed">The change could not be applied. The document was not changed.</string>
     <string name="msg_stale">The page has changed. Please try again.</string>
     <string name="msg_saved_copy">Copy saved</string>

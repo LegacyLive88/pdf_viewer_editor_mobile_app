@@ -95,7 +95,12 @@ it is drawn in.
 A highlight is a standard `/Highlight` annotation with `/QuadPoints` and an appearance stream
 (multiply blend), so every other viewer shows it and any PDF editor can remove it. On screen
 the app draws markup itself on top of the page bitmap, because Android's renderer does not draw
-annotations before Android 15.
+highlights (on any version, unless asked to on Android 15+; the app never asks, so a highlight
+is never drawn twice).
+
+Other annotations – form fields, stamps, notes, drawings – are not drawn by the app. The engine
+reports which kinds a document contains and the app tells the user about those the device's
+renderer leaves out (see FEATURES.md → Opening and viewing).
 
 ## Editing a paragraph (`ParagraphEditor`)
 
