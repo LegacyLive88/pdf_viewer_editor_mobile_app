@@ -17,6 +17,7 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
@@ -577,5 +578,29 @@ class ViewerDeviceTest {
         screenshot("09-large-document")
         readFile { assertTrue(it.pageTextContent(149).contains("Chapter 150")) }
         assertNotNull(state())
+    }
+
+    @Test
+    fun aboutShowsTheVersionAndTheOpenSourceLicences() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        onView(withContentDescription(androidx.appcompat.R.string.abc_action_menu_overflow_description)).perform(click())
+        onView(withText(R.string.action_about)).perform(click())
+        onView(withText(containsString(BuildConfig.VERSION_NAME))).inRoot(isDialog()).check(matches(isDisplayed()))
+        screenshot("10-about")
+
+        onView(withText(R.string.action_licences)).inRoot(isDialog()).perform(click())
+        onView(withId(R.id.licenceText)).inRoot(isDialog()).check(
+            matches(
+                allOf(
+                    isDisplayed(),
+                    withText(containsString("Apache License")),
+                    withText(containsString("PdfBox-Android")),
+                    withText(containsString("Bouncy Castle")),
+                    withText(containsString("SIL OPEN FONT LICENSE")),
+                    withText(containsString("DejaVu")),
+                ),
+            ),
+        )
+        screenshot("11-licences")
     }
 }

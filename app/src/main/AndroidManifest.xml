@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         No permissions are requested. Documents are reached only through the system file
         picker or when another app hands one over, so the app never sees files the user did
         not choose, and it never goes online.
     -->
+    <!--
+        Nothing is backed up or copied to a new phone: the app's storage holds working copies of
+        the user's documents, which are private, and remembered document links, which only
+        work on this device.
+    -->
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        tools:targetApi="s"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

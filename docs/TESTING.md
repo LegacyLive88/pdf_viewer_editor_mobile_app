@@ -10,7 +10,7 @@ There are four layers. Each catches things the others cannot.
 | Device tests | The real app on real Android: platform renderer, touch input, the file on disk | `./gradlew :app:connectedDebugAndroidTest` | emulator or phone |
 
 Everything except the device tests runs on any machine with a JDK, in about a minute:
-84 engine tests and 54 app tests.
+84 engine tests and 59 app tests.
 
 ```bash
 ./gradlew :pdfcore:testDebugUnitTest :app:testDebugUnitTest
@@ -63,6 +63,7 @@ fixtures are committed, so tests do not need any of that.
 | `DocumentSourceTest` | 7 | writing only the tail vs the whole file, read-only detection, recent documents |
 | `PdfPagesViewTest` | 16 | page layout, scrolling, zoom limits and focus, render requests, tap and double-tap reporting |
 | `RenderComparisonTest` | 6 | the before/after picture comparison used to verify paragraph edits (plain JUnit) |
+| `OpenSourceNoticesTest` | 5 | the licences screen names everything the app contains; a new library cannot be added without its licence (plain JUnit) |
 
 The view model tests use the **real engine and real files**; only the pixel renderer is
 replaced by `FakeRasterizer`, since Android's `PdfRenderer` does not exist on the JVM. After
@@ -102,7 +103,7 @@ that shrank (PDFium then ignores objects), a cross-reference stream without its 
 
 ## 4. Device tests (`app/src/androidTest`)
 
-`ViewerDeviceTest` (13 tests) launches the real activity through an "Open with" intent, sends
+`ViewerDeviceTest` (14 tests) launches the real activity through an "Open with" intent, sends
 real touch events and checks pixels on screen, the clipboard and the file on disk. Screenshots
 of the key moments are written to the app's `files/device-test-screens/`.
 

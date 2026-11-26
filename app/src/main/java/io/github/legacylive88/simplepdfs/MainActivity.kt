@@ -33,6 +33,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import io.github.legacylive88.simplepdfs.databinding.ActivityMainBinding
 import io.github.legacylive88.simplepdfs.databinding.DialogEditParagraphBinding
+import io.github.legacylive88.simplepdfs.databinding.DialogLicencesBinding
 import io.github.legacylive88.simplepdfs.pdfcore.ParagraphInfo
 import io.github.legacylive88.simplepdfs.view.PdfPagesView
 import kotlinx.coroutines.launch
@@ -389,6 +390,18 @@ class MainActivity : AppCompatActivity(), PdfPagesView.Listener {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.about_title)
             .setMessage(getString(R.string.about_body, getString(R.string.app_name), BuildConfig.VERSION_NAME))
+            .setPositiveButton(R.string.action_ok, null)
+            .setNeutralButton(R.string.action_licences) { _, _ -> showLicences() }
+            .show()
+    }
+
+    /** The licence texts of the libraries and fonts the app contains, as their licences require. */
+    private fun showLicences() {
+        val view = DialogLicencesBinding.inflate(layoutInflater)
+        view.licenceText.text = OpenSourceNotices.load(assets)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.licences_title)
+            .setView(view.root)
             .setPositiveButton(R.string.action_ok, null)
             .show()
     }

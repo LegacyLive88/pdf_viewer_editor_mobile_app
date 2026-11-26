@@ -1,6 +1,7 @@
 package io.github.legacylive88.simplepdfs.view
 
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -19,6 +20,8 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.OverScroller
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withTranslation
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupInfo
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupKind
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
@@ -475,6 +478,9 @@ class PdfPagesView @JvmOverloads constructor(
     // Touch
     // ---------------------------------------------------------------------------------------------
 
+    // performClick() is called where a tap is recognised (dispatchTap), which lint cannot see
+    // because the gesture detectors sit in between.
+    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (source == null) return false
         // Both detectors always see the whole gesture so neither is left in a half-finished state.
@@ -487,7 +493,21 @@ class PdfPagesView @JvmOverloads constructor(
     private fun dispatchTap(e: MotionEvent, double: Boolean) {
         val hit = screenToPage(e.x, e.y) ?: return
         val page = hit[0].toInt()
-        if (double) listener?.onDoubleTap(page, hit[1], hit[2]) else listener?.onTap(page, hit[1], hit[2])
+        if (double) {
+            listener?.onDoubleTap(page, hit[1], hit[2])
+        } else {
+            performClick()
+            listener?.onTap(page, hit[1], hit[2])
+        }
+    }
+
+    /**
+     * Taps are reported with their position through [Listener]; this only lets the system and
+     * accessibility services know that the view was activated.
+     */
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
     }
 
     /** Converts a screen position to (page, x, y) in page space; null when not on a page. */
@@ -518,37 +538,36 @@ class PdfPagesView @JvmOverloads constructor(
 
         val top = scrollYf / zoom
         val bottom = (scrollYf + height) / zoom
-        canvas.save()
-        canvas.translate(-scrollXf, -scrollYf)
-        canvas.scale(zoom, zoom)
+        canvas.withTranslation(-scrollXf, -scrollYf) {
+            canvas.scale(zoom, zoom)
 
-        val w = baseWidth()
-        val hairline = 1f / zoom
-        for (i in 0 until pageCount) {
-            val pt = pageTop[i]
-            val pb = pt + pageHeight[i]
-            if (pb < top) continue
-            if (pt > bottom) break
+            val w = baseWidth()
+            val hairline = 1f / zoom
+            for (i in 0 until pageCount) {
+                val pt = pageTop[i]
+                val pb = pt + pageHeight[i]
+                if (pb < top) continue
+                if (pt > bottom) break
 
-            tmpRect.set(margin, pt, margin + w, pb)
-            canvas.drawRect(tmpRect.left - hairline, tmpRect.top - hairline, tmpRect.right + hairline, tmpRect.bottom + 2 * hairline, shadowPaint)
+                tmpRect.set(margin, pt, margin + w, pb)
+                canvas.drawRect(tmpRect.left - hairline, tmpRect.top - hairline, tmpRect.right + hairline, tmpRect.bottom + 2 * hairline, shadowPaint)
 
-            val tile = base[i]
-            if (tile != null && !tile.bitmap.isRecycled) {
-                canvas.drawBitmap(tile.bitmap, null, tmpRect, bitmapPaint)
-            } else {
-                canvas.drawRect(tmpRect, pagePaint)
+                val tile = base[i]
+                if (tile != null && !tile.bitmap.isRecycled) {
+                    canvas.drawBitmap(tile.bitmap, null, tmpRect, bitmapPaint)
+                } else {
+                    canvas.drawRect(tmpRect, pagePaint)
+                }
+                if (tile == null || tile.version != pageVersion[i]) requestBase(i)
+
+                val patch = detail[i]
+                if (patch != null && !patch.bitmap.isRecycled && patch.version == pageVersion[i] && patch.zoom == zoom) {
+                    canvas.drawBitmap(patch.bitmap, null, patch.rect, bitmapPaint)
+                }
+
+                drawOverlays(canvas, src, i)
             }
-            if (tile == null || tile.version != pageVersion[i]) requestBase(i)
-
-            val patch = detail[i]
-            if (patch != null && !patch.bitmap.isRecycled && patch.version == pageVersion[i] && patch.zoom == zoom) {
-                canvas.drawBitmap(patch.bitmap, null, patch.rect, bitmapPaint)
-            }
-
-            drawOverlays(canvas, src, i)
         }
-        canvas.restore()
 
         // Have the pages just outside the screen ready before they scroll into view.
         val first = firstVisiblePage()
@@ -651,7 +670,7 @@ class PdfPagesView @JvmOverloads constructor(
             scale *= k
         }
         val bitmap = try {
-            Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+            createBitmap(bw, bh)
         } catch (_: OutOfMemoryError) {
             trimBase(0)
             return
@@ -765,7 +784,7 @@ class PdfPagesView @JvmOverloads constructor(
             val bw = ((right - left) * zoom).roundToInt().coerceAtLeast(1)
             val bh = ((bottom - top) * zoom).roundToInt().coerceAtLeast(1)
             val bitmap = try {
-                Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+                createBitmap(bw, bh)
             } catch (_: OutOfMemoryError) {
                 continue
             }

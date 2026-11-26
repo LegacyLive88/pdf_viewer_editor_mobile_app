@@ -335,22 +335,26 @@ class PdfSession private constructor(
             val after = pageText(pageIndex)
             verifyUntouchedText(before, p, after, outcome.originalOperatorCount)
             val area = ArrayList(oldArea)
-            boundsOfNewText(after, outcome.originalOperatorCount)?.let { area.add(it) }
+            val written = after.glyphs.filter { it.ctx == 0 && it.op >= outcome.originalOperatorCount }
+            boundsOf(written)?.let { area.add(it) }
+            val largestType = maxOf(
+                p.lines.maxOf { line -> line.glyphs.maxOfOrNull { it.size } ?: 0f },
+                written.maxOfOrNull { it.size } ?: 0f,
+            )
             Change(
                 ParagraphEditResult(true, outcome.fontScale, outcome.overflowed, outcome.lineCount),
-                PageChange(pageIndex, pageSize(pageIndex), true, area),
+                PageChange(pageIndex, pageSize(pageIndex), true, area, PageChange.overhangFor(largestType)),
             )
         }
     }
 
-    /** Box around the text an edit has just added (everything after the original operators). */
-    private fun boundsOfNewText(after: PageText, originalOperatorCount: Int): Quad? {
+    /** Box around the text an edit has just added. */
+    private fun boundsOf(glyphs: List<Glyph>): Quad? {
         var left = Float.MAX_VALUE
         var top = Float.MAX_VALUE
         var right = -Float.MAX_VALUE
         var bottom = -Float.MAX_VALUE
-        for (g in after.glyphs) {
-            if (g.ctx != 0 || g.op < originalOperatorCount) continue
+        for (g in glyphs) {
             // the four corners of the glyph's box: along the baseline, and up/down from it
             val upX = g.dirY
             val upY = -g.dirX

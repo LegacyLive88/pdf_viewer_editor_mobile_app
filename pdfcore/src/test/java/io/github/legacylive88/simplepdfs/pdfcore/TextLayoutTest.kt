@@ -65,12 +65,12 @@ class TextLayoutTest {
     @Test
     fun typedTextIsCleanedBeforeItIsTypeset() {
         assertEquals("a    b", TextLayout.sanitize("a\tb"))
-        assertEquals("a\nb\nc\nd", TextLayout.sanitize("a\r\nb\rc d"))
-        assertEquals("ab", TextLayout.sanitize("a\u0000\u0007​﻿b"))
-        assertEquals("thin space", TextLayout.sanitize("thin space"))
-        assertEquals("ideographic space", TextLayout.sanitize("ideographic　space"))
+        assertEquals("a\nb\nc\nd", TextLayout.sanitize("a\r\nb\rc\u2028d"))
+        assertEquals("ab", TextLayout.sanitize("a\u0000\u0007\u200B\uFEFFb"))
+        assertEquals("thin space", TextLayout.sanitize("thin\u2009space"))
+        assertEquals("ideographic space", TextLayout.sanitize("ideographic\u3000space"))
         // a non-breaking space is a real character with a glyph and is kept
-        assertEquals("10 km", TextLayout.sanitize("10 km"))
+        assertEquals("10\u00A0km", TextLayout.sanitize("10\u00A0km"))
         // characters outside the basic plane survive
         assertEquals("ok 😀", TextLayout.sanitize("ok 😀"))
         assertFalse(TextLayout.sanitize("x\u0001y").contains('\u0001'))

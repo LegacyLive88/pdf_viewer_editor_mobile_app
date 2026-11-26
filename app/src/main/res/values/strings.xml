@@ -76,4 +76,6 @@
     <string name="about_title">About</string>
     <string name="about_body">%1$s %2$s\n\nA simple, free PDF viewer with a few tricks: select, copy, highlight, and edit paragraphs. Changes are saved straight into the PDF.\n\nBuilt with PdfBox-Android (Apache License 2.0). Edited text is written with Liberation Fonts (SIL Open Font License 1.1) and DejaVu Fonts.</string>
     <string name="action_ok">OK</string>
+    <string name="action_licences">Open-source licences</string>
+    <string name="licences_title">Open-source licences</string>
 </resources>

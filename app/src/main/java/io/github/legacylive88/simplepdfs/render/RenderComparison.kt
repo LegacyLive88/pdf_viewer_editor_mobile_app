@@ -19,7 +19,10 @@ object RenderComparison {
     /** Two colours further apart than this (in any channel) count as different. */
     private const val COLOUR_TOLERANCE = 40
 
-    /** Space around the edited text that is not compared, in points: glyphs overhang their boxes. */
+    /**
+     * Least space around the edited text that is not compared, in points of the picture's
+     * page: glyphs overhang their boxes. A change may ask for more ([PageChange.overhang]).
+     */
     const val MARGIN_POINTS = 6f
 
     /**
@@ -67,7 +70,7 @@ object RenderComparison {
      */
     fun mask(change: PageChange, scale: Float, unitScale: Float): List<IntArray> = change.area.map { q ->
         val k = scale * unitScale
-        val margin = MARGIN_POINTS * scale
+        val margin = max(MARGIN_POINTS * scale, change.overhang * k)
         intArrayOf(
             floor(q.left * k - margin).toInt(),
             floor(q.top * k - margin).toInt(),

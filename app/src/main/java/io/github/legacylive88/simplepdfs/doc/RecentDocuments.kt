@@ -2,6 +2,8 @@ package io.github.legacylive88.simplepdfs.doc
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -22,7 +24,7 @@ class RecentDocuments(context: Context) {
             (0 until array.length()).mapNotNull { i ->
                 val o = array.optJSONObject(i) ?: return@mapNotNull null
                 val uri = o.optString("uri").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                Entry(Uri.parse(uri), o.optString("name", "document.pdf"), o.optLong("at", 0L))
+                Entry(uri.toUri(), o.optString("name", "document.pdf"), o.optLong("at", 0L))
             }
         } catch (_: Exception) {
             emptyList()
@@ -43,7 +45,7 @@ class RecentDocuments(context: Context) {
         for (e in entries) {
             array.put(JSONObject().put("uri", e.uri.toString()).put("name", e.name).put("at", e.openedAt))
         }
-        prefs.edit().putString(KEY, array.toString()).apply()
+        prefs.edit { putString(KEY, array.toString()) }
     }
 
     private companion object {

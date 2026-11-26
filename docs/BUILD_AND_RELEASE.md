@@ -18,6 +18,11 @@
 > The application ID is permanent once the app is published anywhere: Android treats a different
 > ID as a different app. Change it now if you want another one.
 
+The library versions in `gradle/libs.versions.toml` are the ones the app was tested with.
+Lint lists newer ones ("a newer version of … is available"); those notes are expected. Updating
+is routine maintenance: change the version, run the test layers in [TESTING.md](TESTING.md).
+Android Gradle Plugin 9 needs Gradle 9, so the two move together.
+
 ## Build
 
 Debug build (installs next to a release build, signed with the local debug key):
@@ -85,11 +90,20 @@ keytool -genkeypair -keystore simplepdfs-release.jks -alias simplepdfs -keyalg R
 
 | Job | Runs | Does |
 |---|---|---|
-| `test` | push to `main`, tags `v*`, manual | JVM tests, lint, cross-validation of written PDFs |
+| `test` | push to `main`, tags `v*`, manual | JVM tests, lint (both modules), cross-validation of written PDFs |
 | `build` | after `test` | release APK as a build artifact; attached to a GitHub release for tags |
 | `device-test` | tags `v*`, or manual with the box ticked | the on-device suite in an emulator |
 
 Pull requests are **not** built automatically; the workflow file says how to switch that on.
+
+Lint is part of the `test` job and fails it on errors:
+
+```bash
+./gradlew :pdfcore:lintDebug :app:lintDebug
+```
+
+It is expected to report no errors and only the "newer version available" notes. One library
+finding is switched off in `app/lint.xml` and `pdfcore/lint.xml`, with the reason given there.
 
 ## Releasing a version
 
@@ -129,9 +143,19 @@ remaining size is the library's character maps and the bundled fonts.
 
 | Component | Licence | Used for |
 |---|---|---|
-| PdfBox-Android 2.0.27.0 (+ Bouncy Castle) | Apache 2.0 (MIT-style for Bouncy Castle) | reading and writing PDF structure |
+| PdfBox-Android 2.0.27.0 (+ Bouncy Castle 1.72) | Apache 2.0 (MIT-style for Bouncy Castle) | reading and writing PDF structure |
 | Liberation Fonts 2.1.5 | SIL Open Font License 1.1 | text written into PDFs |
 | DejaVu Sans 2.37 | Bitstream Vera / public domain | fallback for symbols |
 | AndroidX, Material Components, Kotlin, kotlinx.coroutines | Apache 2.0 | app framework |
 
-Font licence texts ship inside the app at `assets/fonts/LICENSE.txt`.
+All of these allow free and commercial distribution. What they ask for is that their licence
+texts travel with the app, which they do: **About → Open-source licences** shows them.
+
+| File | Contents |
+|---|---|
+| `app/src/main/assets/licenses/THIRD_PARTY_NOTICES.txt` | notices and licences of the libraries |
+| `pdfcore/src/main/assets/fonts/LICENSE.txt` | licences of the bundled fonts |
+
+**When a library is added, removed or updated**, bring `THIRD_PARTY_NOTICES.txt` up to date
+(the library's `LICENSE` and `NOTICE` files are inside its jar under `META-INF/`).
+`OpenSourceNoticesTest` fails if a library in the version catalog has no entry.

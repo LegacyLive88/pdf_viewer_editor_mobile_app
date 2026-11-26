@@ -77,8 +77,15 @@ class RenderComparisonTest {
         val mask = RenderComparison.mask(change, scale = 0.5f, unitScale = 1f)
         // 6 points of margin are 3 pixels at this scale
         assertArrayEquals(intArrayOf(33, 67, 208, 103), mask[0])
-        // coordinates in another unit are converted first
-        assertArrayEquals(intArrayOf(69, 137, 413, 203), RenderComparison.mask(change, 0.5f, 2f)[0])
+        // coordinates in another unit are converted first, and the margin with them
+        assertArrayEquals(intArrayOf(66, 134, 416, 206), RenderComparison.mask(change, 0.5f, 2f)[0])
+
+        // large type overhangs further, so its margin is wider – up to a limit
+        assertEquals(6f, PageChange.overhangFor(11f), 0f)
+        assertEquals(16.8f, PageChange.overhangFor(48f), 0.001f)
+        assertEquals(24f, PageChange.overhangFor(200f), 0f)
+        val headline = PageChange(0, PageSize(612f, 792f), true, change.area, PageChange.overhangFor(48f))
+        assertArrayEquals(intArrayOf(27, 61, 214, 109), RenderComparison.mask(headline, 0.5f, 1f)[0])
 
         // a mask that sticks out of the picture is simply cut off
         val before = page(20, 20)

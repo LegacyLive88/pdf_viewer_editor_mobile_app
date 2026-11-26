@@ -78,7 +78,7 @@ checked = 0
 
 def norm(s):
     """Whitespace-insensitive comparison: extractors differ in where they put spaces and breaks."""
-    s = s.replace("­", "-").replace("ﬁ", "fi").replace("ﬂ", "fl").replace(" ", " ")
+    s = s.replace("\u00AD", "-").replace("\uFB01", "fi").replace("\uFB02", "fl").replace("\u00A0", " ")
     return re.sub(r"\s+", "", s)
 
 

@@ -4,8 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="?attr/pageBackdrop">
+    android:layout_height="match_parent">
 
     <io.github.legacylive88.simplepdfs.view.PdfPagesView
         android:id="@+id/pages"
@@ -137,9 +136,9 @@
             android:background="?attr/colorTertiaryContainer"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingLeft="16dp"
+            android:paddingStart="16dp"
             android:paddingTop="4dp"
-            android:paddingRight="8dp"
+            android:paddingEnd="8dp"
             android:paddingBottom="4dp"
             android:visibility="gone">
 

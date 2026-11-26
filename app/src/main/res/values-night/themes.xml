@@ -20,5 +20,7 @@
         <item name="colorError">@color/md_dark_error</item>
         <item name="android:colorBackground">@color/md_dark_surface</item>
         <item name="pageBackdrop">@color/page_backdrop_dark</item>
+        <!-- The backdrop behind the pages is the window itself, so no view has to paint it again. -->
+        <item name="android:windowBackground">@color/page_backdrop_dark</item>
     </style>
 </resources>

@@ -491,7 +491,7 @@ internal class GlyphExtractor(private val page: PDPage, private val geom: PageGe
 
         val unicode = unicodeFor(font, code)
         val mapped = unicode != null
-        val text = cleanText(unicode ?: "�")
+        val text = cleanText(unicode ?: "\uFFFD")
 
         val space = try {
             val sw = font.spaceWidth
@@ -626,7 +626,7 @@ internal class GlyphExtractor(private val page: PDPage, private val geom: PageGe
 
         /**
          * Normalises the Unicode value of a glyph for use as text:
-         *  - Latin ligatures (ﬁ, ﬂ, …) are expanded so searching and editing see plain letters,
+         *  - Latin ligatures (\uFB01, \uFB02, …) are expanded so searching and editing see plain letters,
          *  - a soft hyphen is a *visible* hyphen in PDF content,
          *  - non-breaking and other exotic spaces become ordinary spaces,
          *  - control characters carry no text.
@@ -634,9 +634,9 @@ internal class GlyphExtractor(private val page: PDPage, private val geom: PageGe
         fun cleanText(raw: String): String {
             var needsWork = false
             for (ch in raw) {
-                if (ch < ' ' || ch == '\u007F' || ch == ' ' || ch == '­' ||
-                    ch in ' '..'‏' || ch in ' '..' ' || ch == '　' ||
-                    ch in 'ﬀ'..'ﬆ' || ch == '﻿' || ch in '\u0080'..'\u009F'
+                if (ch < ' ' || ch == '\u007F' || ch == '\u00A0' || ch == '\u00AD' ||
+                    ch in '\u2000'..'\u200F' || ch in '\u2028'..'\u202F' || ch == '\u3000' ||
+                    ch in '\uFB00'..'\uFB06' || ch == '\uFEFF' || ch in '\u0080'..'\u009F'
                 ) {
                     needsWork = true
                     break
@@ -648,10 +648,10 @@ internal class GlyphExtractor(private val page: PDPage, private val geom: PageGe
                 when {
                     ch == '\t' || ch == '\n' || ch == '\r' -> sb.append(' ')
                     ch < ' ' || ch == '\u007F' || ch in '\u0080'..'\u009F' -> {}
-                    ch == ' ' || ch in ' '..' ' || ch == ' ' || ch == '　' -> sb.append(' ')
-                    ch == '­' -> sb.append('-')
-                    ch in '​'..'‏' || ch in ' '..'‮' || ch == '﻿' -> {}
-                    ch in 'ﬀ'..'ﬆ' -> sb.append(Normalizer.normalize(ch.toString(), Normalizer.Form.NFKC))
+                    ch == '\u00A0' || ch in '\u2000'..'\u200A' || ch == '\u202F' || ch == '\u3000' -> sb.append(' ')
+                    ch == '\u00AD' -> sb.append('-')
+                    ch in '\u200B'..'\u200F' || ch in '\u2028'..'\u202E' || ch == '\uFEFF' -> {}
+                    ch in '\uFB00'..'\uFB06' -> sb.append(Normalizer.normalize(ch.toString(), Normalizer.Form.NFKC))
                     else -> sb.append(ch)
                 }
             }

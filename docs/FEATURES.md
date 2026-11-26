@@ -34,6 +34,10 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   the first. For the usual uniform document nothing moves.
 - Each visible page has a bitmap at screen width; when zoomed in, the visible part is rendered
   again at the exact zoom. Memory use therefore does not grow with zoom or page count.
+- **Nothing is backed up or moved to a new phone** (`allowBackup="false"` plus
+  `res/xml/data_extraction_rules.xml` for Android 12+). The app's storage holds working copies
+  of the user's documents, which are private, and links to recent documents, which only work
+  on the device they were made on.
 
 **Assumptions**
 - The device has enough free cache space for a copy of the document (two after the first edit).
@@ -41,6 +45,9 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   itself; **other annotation types (form field values, stamps, notes) are not shown on Android
   14 and older.**
 - Password-protected PDFs are not supported yet and are reported as such.
+- **Screen readers:** the bars, buttons, dialogs and messages are labelled, but the pages
+  themselves are pictures to TalkBack – the text on them is not read out. Selecting by tapping
+  words needs sight.
 
 **Should be tested**
 - Opening from each entry point; a file that is not a PDF; an empty file; a password-protected
@@ -366,6 +373,9 @@ Applies to features 5 and 6.
   user is told the document was not changed. This costs two small page renders per edit and
   means an edit can be refused on a page where it would have been harmless – the safe side to
   err on with someone's document.
+- "Outside the edited paragraph" allows a margin around the old and the new text, because
+  letters overhang their boxes (italics, accents, long descenders): 6 points for ordinary
+  text, growing with the size of the type (35 % of it) up to 24 points for headlines.
 - **Read-only locations** (mail attachments, some downloads): the edit is applied to the app's
   copy, a banner explains that it is not in the original, and "Save as…" stores it in a new
   file that then becomes the document.
@@ -393,7 +403,8 @@ Applies to features 5 and 6.
   `aProviderWithoutRandomAccessGetsTheWholeFileRewritten`
 - engine: `aFailedVerificationRollsTheEditBack`, `aFailedVerificationLeavesTheDocumentAsItWas`,
   `everyFileStructureCanBeEditedAndSaved`, `highlightsWorkOnEveryFileStructure`
-- app `RenderComparisonTest` (6 tests): the picture comparison itself
+- app `RenderComparisonTest` (6 tests): the picture comparison itself, including the margin
+  for large type
 - device: `theSaveVerifierAcceptsACleanEditAndRejectsOneThatChangesSomethingElse` – the real
   verifier with the real renderer, including a change outside the declared area being refused
 - device: both feature tests check that the file on disk grew and that its original bytes are
@@ -401,3 +412,42 @@ Applies to features 5 and 6.
 - cross-check: qpdf opens every written file *without recovery* and reports no problems.
 - **Not tested:** power loss during a write (the design limits the damage to the appended
   tail, but this has not been exercised); real cloud storage providers.
+
+---
+
+## About and open-source licences
+
+Not one of the six features; it is there because the app contains other people's work.
+
+**What it does.** The menu's **About** shows the app's name and version and what it is built
+with. **Open-source licences** opens the full licence texts of every library and font inside
+the app.
+
+**Decisions**
+- The licences are shown **in the app**, not only shipped as files inside it. The Apache
+  licence (PDF library, AndroidX, Kotlin) asks that recipients are given a copy, and the Open
+  Font License asks that the font licence can be "easily viewed by the user".
+- The texts are kept **verbatim** in the repository: `app/src/main/assets/licenses/
+  THIRD_PARTY_NOTICES.txt` (assembled from the `LICENSE` and `NOTICE` files inside the Apache
+  PDFBox and FontBox 2.0.27 jars and from Bouncy Castle's own licence class) and
+  `pdfcore/src/main/assets/fonts/LICENSE.txt` beside the fonts.
+- For display the hard line breaks inside paragraphs are removed (`OpenSourceNotices.reflow`),
+  because text wrapped at 78 columns breaks a second time on a phone. No word is changed.
+- A test fails when a library is added to the build without being added to the notices.
+
+**Assumptions**
+- The list is maintained by hand when dependencies change (the test above is the reminder).
+- Libraries pulled in indirectly by AndroidX and Kotlin are under the same Apache licence as
+  their parents.
+
+**Should be tested**
+- Every component in the app is named with its licence; reflowing changes no word; the screen
+  opens from the menu and shows the text; a new dependency cannot be added unnoticed.
+
+**Tested today**
+- app `OpenSourceNoticesTest` (5 tests): `wrappedLinesAreJoinedAndShortLinesKeepTheirBreak`,
+  `copyrightStatementsAndDifferentlyIndentedLinesAreNeverRunTogether`,
+  `reflowingTheRealLicencesChangesNoWord`, `everyComponentInTheAppIsNamedWithItsLicence`,
+  `everyLibraryTheBuildShipsIsCoveredByTheNotices`
+- device: `aboutShowsTheVersionAndTheOpenSourceLicences`
+- **Not automated:** whether the list of *indirect* dependencies is complete.

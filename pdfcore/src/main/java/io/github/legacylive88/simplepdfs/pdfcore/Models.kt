@@ -188,6 +188,8 @@ class PdfEditException(val reason: Reason, message: String, cause: Throwable? = 
  *   false when only annotations changed (highlights), which never alters how page content renders
  * @property area where the change is, in display space: the old and the new text of an edited
  *   paragraph, or the selection of a highlight. Everything outside it must look exactly as before.
+ * @property overhang how far, in points, ink may reach beyond [area]. Glyphs overhang their
+ *   boxes (italics, accents, long descenders), and the larger the type the further.
  */
 class PageChange(
     val pageIndex: Int,
@@ -195,7 +197,19 @@ class PageChange(
     val pageSize: PageSize,
     val contentChanged: Boolean,
     val area: List<Quad>,
-)
+    val overhang: Float = MIN_OVERHANG,
+) {
+    companion object {
+        /** Overhang assumed for ordinary text sizes, in points. */
+        const val MIN_OVERHANG = 6f
+
+        /** Upper limit, so that very large type does not exempt half the page from checking. */
+        const val MAX_OVERHANG = 24f
+
+        /** Overhang allowed for type of the given em size (points). */
+        fun overhangFor(fontSize: Float): Float = (fontSize * 0.35f).coerceIn(MIN_OVERHANG, MAX_OVERHANG)
+    }
+}
 
 /**
  * Checks a freshly written file before the engine accepts it as the new document state.

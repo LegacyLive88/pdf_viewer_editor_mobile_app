@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import androidx.core.graphics.createBitmap
 import io.github.legacylive88.simplepdfs.pdfcore.PageChange
 import io.github.legacylive88.simplepdfs.pdfcore.SaveVerifier
 import java.io.Closeable
@@ -118,7 +119,7 @@ class PlatformRasterizer private constructor(private val renderer: PdfRenderer) 
                         if (size[0] <= 0f || size[1] <= 0f) throw IOException("Page ${change.pageIndex + 1} has no size")
                         if (!change.contentChanged) {
                             // Annotations do not alter how page content renders; just prove the page still draws.
-                            val probe = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
+                            val probe = createBitmap(48, 48)
                             try {
                                 after.render(change.pageIndex, probe, 48f / size[0], 0f, 0f)
                             } finally {
@@ -148,7 +149,7 @@ class PlatformRasterizer private constructor(private val renderer: PdfRenderer) 
             val height = maxOf(1, (size[1] * scale).toInt())
             val a = IntArray(width * height)
             val b = IntArray(width * height)
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bitmap = createBitmap(width, height)
             try {
                 before.render(change.pageIndex, bitmap, scale, 0f, 0f)
                 bitmap.getPixels(a, 0, width, 0, 0, width, height)
