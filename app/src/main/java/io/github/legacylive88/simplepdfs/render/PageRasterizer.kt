@@ -88,11 +88,12 @@ class PlatformRasterizer private constructor(
         @Throws(IOException::class, PasswordProtectedException::class)
         fun open(file: File): PlatformRasterizer {
             val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            val scratchDir = file.absoluteFile.parentFile ?: file
             try {
                 // On success the renderer owns the descriptor and closes it.
-                val renderer = PdfRenderer(pfd)
+                val renderer = RendererFactory.create(pfd, scratchDir)
                 // What this device's renderer draws besides page content is measured, not assumed.
-                return PlatformRasterizer(renderer, AnnotationProbe.drawnKinds(file.absoluteFile.parentFile ?: file))
+                return PlatformRasterizer(renderer, AnnotationProbe.drawnKinds(scratchDir))
             } catch (e: SecurityException) {
                 closeQuietly(pfd)
                 throw PasswordProtectedException()

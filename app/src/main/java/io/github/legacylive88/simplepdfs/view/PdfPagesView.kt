@@ -137,6 +137,15 @@ class PdfPagesView @JvmOverloads constructor(
     private var anchorPage = -1
     private var anchorQuads: List<Quad> = emptyList()
 
+    /** The reader's place (see [currentPlace]) when the view was last drawn. */
+    private val shownPlace = FloatArray(3)
+    private var shownPlaceValid = false
+    private var shownScrollY = 0f
+    private var shownZoom = 1f
+
+    /** Set between a change of size and the next drawing: the place to keep meanwhile. */
+    private var placeBeforeResize: FloatArray? = null
+
     private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val pagePaint = Paint().apply { color = Color.WHITE }
     private val shadowPaint = Paint().apply { color = 0x30000000 }
@@ -261,6 +270,8 @@ class PdfPagesView @JvmOverloads constructor(
         layoutPages()
         scrollYf = minScrollY()
         lastReportedPage = -1
+        shownPlaceValid = false
+        placeBeforeResize = null
         invalidate()
         reportViewport()
     }
@@ -268,9 +279,9 @@ class PdfPagesView @JvmOverloads constructor(
     /** Call when page sizes reported by the source have changed (they are measured lazily). */
     fun onPageSizesChanged() {
         if (source == null) return
-        val anchor = topAnchor()
+        val place = currentPlace()
         layoutPages()
-        restoreAnchor(anchor)
+        restorePlace(place)
         invalidate()
     }
 
@@ -306,7 +317,15 @@ class PdfPagesView @JvmOverloads constructor(
         val atTop = scrollYf <= minScrollY() + 1f
         insetTop = top
         insetBottom = bottom
-        if (atTop) scrollYf = minScrollY()
+        val place = placeBeforeResize
+        when {
+            // The bars changed size together with the view (the phone was turned): put the
+            // reader's place below the bar as it is now.
+            place != null -> restorePlace(place)
+            // Otherwise the bars only appeared or went away. The pages stay where they are,
+            // so nothing jumps under the reader's eye.
+            atTop -> scrollYf = minScrollY()
+        }
         clampScroll()
         invalidate()
     }
@@ -377,29 +396,49 @@ class PdfPagesView @JvmOverloads constructor(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (source == null || w == 0) return
-        val anchor = if (oldw > 0 && pageTop.isNotEmpty()) topAnchor() else null
+        // Where the reader was when the view was last drawn. The bars above the pages may be
+        // resized in the same layout pass, before or after this view, so the place is taken
+        // from the last picture the reader saw rather than from the half-updated state now.
+        val place = when {
+            oldw <= 0 || pageTop.isEmpty() -> null
+            // only if nothing has moved since that picture was drawn
+            shownPlaceValid && scrollYf == shownScrollY && zoom == shownZoom -> shownPlace.clone()
+            else -> currentPlace()
+        }
         // Base bitmaps were rendered for the old width.
         cancelAll()
         recycleAll()
         layoutPages()
-        if (anchor != null) restoreAnchor(anchor) else scrollYf = minScrollY()
+        if (place != null) restorePlace(place) else scrollYf = minScrollY()
+        placeBeforeResize = place
         clampScroll()
         reportViewport()
     }
 
-    /** Page and position within it (0..1) that is currently at the top of the visible area. */
-    private fun topAnchor(): FloatArray {
-        if (pageCount == 0 || pageTop.isEmpty()) return floatArrayOf(0f, 0f)
+    /**
+     * The reader's place: what is at the top of the visible area, as
+     * (page, how far into the page as a fraction of its height, how far above the page).
+     * Inside a page the fraction is used, so the place survives pages changing size. In the
+     * gap above a page the distance is used, because gaps do not grow with the pages.
+     */
+    private fun currentPlace(into: FloatArray = FloatArray(3)): FloatArray {
+        into[0] = 0f; into[1] = 0f; into[2] = 0f
+        if (pageCount == 0 || pageTop.isEmpty()) return into
         val page = firstVisiblePage().coerceAtLeast(0)
-        val y = (scrollYf + insetTop) / zoom
-        val fraction = if (pageHeight[page] > 0f) (y - pageTop[page]) / pageHeight[page] else 0f
-        return floatArrayOf(page.toFloat(), fraction)
+        val below = (scrollYf + insetTop) / zoom - pageTop[page]
+        into[0] = page.toFloat()
+        if (below < 0f) {
+            into[2] = -below
+        } else if (pageHeight[page] > 0f) {
+            into[1] = below / pageHeight[page]
+        }
+        return into
     }
 
-    private fun restoreAnchor(anchor: FloatArray) {
+    private fun restorePlace(place: FloatArray) {
         if (pageCount == 0) return
-        val page = anchor[0].toInt().coerceIn(0, pageCount - 1)
-        scrollYf = (pageTop[page] + anchor[1] * pageHeight[page]) * zoom - insetTop
+        val page = place[0].toInt().coerceIn(0, pageCount - 1)
+        scrollYf = (pageTop[page] + place[1] * pageHeight[page] - place[2]) * zoom - insetTop
         clampScroll()
     }
 
@@ -535,6 +574,12 @@ class PdfPagesView @JvmOverloads constructor(
         canvas.drawColor(backgroundColor)
         val src = source ?: return
         if (pageCount == 0 || width == 0) return
+        // This is what the reader sees from now on; a resize starts from here.
+        currentPlace(shownPlace)
+        shownScrollY = scrollYf
+        shownZoom = zoom
+        shownPlaceValid = true
+        placeBeforeResize = null
 
         val top = scrollYf / zoom
         val bottom = (scrollYf + height) / zoom

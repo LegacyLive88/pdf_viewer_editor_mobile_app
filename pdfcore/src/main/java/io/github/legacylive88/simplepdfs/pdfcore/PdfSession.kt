@@ -610,6 +610,10 @@ class PdfSession private constructor(
                 throw PdfOpenException(e.message ?: "Not a readable PDF", e)
             } catch (e: OutOfMemoryError) {
                 throw PdfOpenException("This PDF is too large to open for editing", e)
+            } catch (e: LinkageError) {
+                // Certificate-encrypted PDFs need a cryptography library that is deliberately
+                // not part of the app (see pdfcore/build.gradle.kts).
+                throw PdfOpenException("This PDF is protected in a way that is not supported", e)
             }
             val fonts = FontBook { name -> app.assets.open(name) }
             warmUp()

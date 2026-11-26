@@ -31,7 +31,7 @@ Debug build (installs next to a release build, signed with the local debug key):
 ./gradlew :app:assembleDebug
 ```
 
-Release build (minified with R8):
+Release build:
 
 ```bash
 ./gradlew :app:assembleRelease
@@ -92,9 +92,14 @@ keytool -genkeypair -keystore simplepdfs-release.jks -alias simplepdfs -keyalg R
 |---|---|---|
 | `test` | push to `main`, tags `v*`, manual | JVM tests, lint (both modules), cross-validation of written PDFs |
 | `build` | after `test` | release APK as a build artifact; attached to a GitHub release for tags |
-| `device-test` | tags `v*`, or manual with the box ticked | the on-device suite in an emulator |
+| `device-test` | tags `v*`, or manual with the box ticked | the on-device suite in two emulators: Android 7.0 (the oldest supported) and Android 14 |
 
 Pull requests are **not** built automatically; the workflow file says how to switch that on.
+
+State of the workflow: `test` and `build` have run on GitHub and passed (first on the merge of
+pull request #1). `device-test` has not been run on GitHub yet – the same suite was run by
+hand on emulators instead (see [TESTING.md](TESTING.md)) – so expect to give it a first
+manual run (Actions → Android → Run workflow, box ticked) before relying on it for a tag.
 
 Lint is part of the `test` job and fails it on errors:
 
@@ -102,14 +107,19 @@ Lint is part of the `test` job and fails it on errors:
 ./gradlew :pdfcore:lintDebug :app:lintDebug
 ```
 
-It is expected to report no errors and only the "newer version available" notes. One library
-finding is switched off in `app/lint.xml` and `pdfcore/lint.xml`, with the reason given there.
+It is expected to report no errors and only the "newer version available" notes.
 
 ## Releasing a version
 
 1. Raise `versionCode` (must increase with every release) and `versionName` in
    `app/build.gradle.kts`.
-2. Run the tests (see [TESTING.md](TESTING.md)).
+2. Run the tests (see [TESTING.md](TESTING.md)). With the signing key on your machine and a
+   phone or emulator attached, the device suite can be run against the release build itself:
+
+   ```bash
+   ./gradlew -PtestRelease :app:connectedReleaseAndroidTest
+   ```
+
 3. Tag and push:
 
    ```bash
@@ -120,7 +130,8 @@ finding is switched off in `app/lint.xml` and `pdfcore/lint.xml`, with the reaso
    git push origin v1.0.1
    ```
 
-   CI builds the signed APK and attaches it to a GitHub release. Without CI, build locally
+   CI runs the tests (including the device suite, on an emulator), builds the APK – signed if
+   the four secrets are set – and attaches it to a GitHub release. Without CI, build locally
    with `./gradlew :app:assembleRelease`.
 
 ## Installing the APK on a phone
@@ -134,16 +145,40 @@ adb install -r app-release.apk
 
 ## Size and minification
 
-The release build runs R8. The app's own code and the AndroidX/Material libraries are shrunk;
-PdfBox-Android is kept whole (`pdfcore/consumer-rules.pro`) because it loads resources by name
-and uses reflection, and predictable behaviour matters more here than size. Most of the
-remaining size is the library's character maps and the bundled fonts.
+The release APK is about 10.5 MB. Roughly: 4.5 MB code (the PDF library, AndroidX, Material,
+Kotlin), 2.8 MB fonts that are written into edited PDFs, 1.6 MB character maps and font
+metrics of the PDF library, 1.5 MB resources.
+
+**Code shrinking (R8) is switched off** (`isMinifyEnabled = false` in `app/build.gradle.kts`).
+With it on the APK would be 7.0 MB instead of 10.5 MB, but the on-device test suite cannot run
+against the release build: the tests share library code with the app (Kotlin, AndroidX), and
+R8 removes or renames what the app itself does not use, so the tests crash on start with
+`NoSuchMethodError`. A release that no device test can exercise was judged a bad trade for
+3.5 MB. Unshrunk, the release build is the same code as the debug build, signed with the
+release key, and the whole device suite runs against the very APK that ships:
+
+```bash
+./gradlew -PtestRelease :app:connectedReleaseAndroidTest
+```
+
+To switch shrinking on later: set `isMinifyEnabled` and `isShrinkResources` to `true`; the
+rules the app itself needs are already in `app/proguard-rules.pro` and
+`pdfcore/consumer-rules.pro`. Then either add keep rules for everything the device tests use
+from the libraries, or accept that the shrunk APK is checked by hand – and check it by hand,
+on a phone, before every release.
+
+**Bouncy Castle is left out** (`pdfcore/build.gradle.kts`). The PDF library declares this
+large cryptography library (2 MB in the unshrunk APK) as a dependency, but only two of its
+classes use it, both for PDFs encrypted for the holder of a certificate. Such files cannot be
+opened by this app in any case, because Android's renderer cannot decrypt them. Password-
+encrypted files use Android's own cryptography. If certificate encryption is ever to be
+supported, remove the exclusion and add Bouncy Castle's licence to the notices.
 
 ## Third-party components
 
 | Component | Licence | Used for |
 |---|---|---|
-| PdfBox-Android 2.0.27.0 (+ Bouncy Castle 1.72) | Apache 2.0 (MIT-style for Bouncy Castle) | reading and writing PDF structure |
+| PdfBox-Android 2.0.27.0 | Apache 2.0 | reading and writing PDF structure |
 | Liberation Fonts 2.1.5 | SIL Open Font License 1.1 | text written into PDFs |
 | DejaVu Sans 2.37 | Bitstream Vera / public domain | fallback for symbols |
 | AndroidX, Material Components, Kotlin, kotlinx.coroutines | Apache 2.0 | app framework |

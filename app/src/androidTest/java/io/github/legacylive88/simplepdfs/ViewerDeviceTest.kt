@@ -35,6 +35,7 @@ import io.github.legacylive88.simplepdfs.pdfcore.PdfSession
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
 import io.github.legacylive88.simplepdfs.render.AnnotationProbe
 import io.github.legacylive88.simplepdfs.render.PlatformRasterizer
+import io.github.legacylive88.simplepdfs.render.RendererFactory
 import io.github.legacylive88.simplepdfs.view.PdfPagesView
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.containsString
@@ -72,6 +73,9 @@ class ViewerDeviceTest {
     fun setUp() {
         // Slimmed-down test images (ATD) switch UI drawing off; the tests look at pixels.
         HardwareRendererCompat.setDrawingEnabled(true)
+        // A slow emulator may be showing a system dialog ("System isn't responding"). It would
+        // sit on top of the app and keep its window from ever getting the focus.
+        shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
         dir.deleteRecursively()
         dir.mkdirs()
     }
@@ -82,6 +86,15 @@ class ViewerDeviceTest {
     }
 
     // --- helpers ----------------------------------------------------------------------------------
+
+    /**
+     * Runs a shell command and waits for it. Its output has to be read to the end before the
+     * pipe is closed: Android 7 kills the test run when a command cannot write its output.
+     */
+    private fun shell(command: String): String {
+        val pipe = instrumentation.uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(pipe).use { String(it.readBytes()) }
+    }
 
     private fun launch(fixture: String) {
         File(dir, "docs").mkdirs()
@@ -207,6 +220,19 @@ class ViewerDeviceTest {
     }
 
     /**
+     * The darkest of several samples taken along a word, left and right of [point]. One sample
+     * alone can fall between two letters.
+     */
+    private fun darkestAlong(page: Int, point: FloatArray): Int {
+        var darkest = 0xFFFFFF
+        for (dx in -12..12 step 3) {
+            val c = colourAt(page, floatArrayOf(point[0] + dx, point[1]))
+            if ((c and 0xFF) < (darkest and 0xFF)) darkest = c
+        }
+        return darkest
+    }
+
+    /**
      * True for the yellow of a highlight, whether the sampled spot is bare paper under the
      * highlight (bright yellow) or partly covered by a letter (dark yellow): in both cases
      * blue is well below red and green, which is never true of black ink on white paper.
@@ -234,12 +260,7 @@ class ViewerDeviceTest {
         val paper = colourAt(0, floatArrayOf(300f, 400f))
         assertTrue("page background should be white, was ${Integer.toHexString(paper)}",
             (paper shr 16) > 0xF0 && ((paper shr 8) and 0xFF) > 0xF0 && (paper and 0xFF) > 0xF0)
-        val title = locate(0, "Quarterly")
-        var darkest = 0xFFFFFF
-        for (dx in -12..12 step 3) {
-            val c = colourAt(0, floatArrayOf(title[0] + dx, title[1]))
-            if ((c and 0xFF) < (darkest and 0xFF)) darkest = c
-        }
+        val darkest = darkestAlong(0, locate(0, "Quarterly"))
         assertTrue("there should be ink on the title, darkest was ${Integer.toHexString(darkest)}", (darkest and 0xFF) < 0x90)
         screenshot("01-opened")
     }
@@ -387,6 +408,51 @@ class ViewerDeviceTest {
         }
         // The old words are gone from the screen as well: where "forecasting." stood is paper now.
         // (The new text is shorter and ends earlier on the second line.)
+    }
+
+    @Test
+    fun aDocumentOpenedThroughAContentUriIsEditedInPlaceThroughItsProvider() {
+        // How documents really arrive: as content:// addresses from the file picker or from
+        // another app, not as file paths. The app's own FileProvider plays the other app here.
+        val shared = File(context.cacheDir, "shared").apply { mkdirs() }
+        file = File(shared, "from-another-app.pdf")
+        instrumentation.context.assets.open("fixtures/basic.pdf").use { input ->
+            FileOutputStream(file).use { input.copyTo(it) }
+        }
+        val original = file.readBytes()
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
+        val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+            .setDataAndType(uri, "application/pdf")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        scenario = ActivityScenario.launch(intent)
+        waitFor("document and text engine ready", 240_000) { val s = state(); s.phase == Phase.READY && s.textReady }
+        waitForIdleEngine()
+        SystemClock.sleep(1500)
+        assertEquals("the name is the one the provider reports", "from-another-app.pdf", state().title)
+        assertFalse("the place can be written to, so edits go into the file itself", state().editsNotInOriginal)
+
+        doubleTap(0, locate(0, "follows"))
+        waitFor("editor shown") {
+            try {
+                onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        val newText = "Written back through the provider."
+        onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText(newText), closeSoftKeyboard())
+        onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        waitFor("edit written back") { !state().working && file.length() > original.size }
+
+        val saved = file.readBytes()
+        assertTrue("only a tail was added: the original bytes are untouched", saved.copyOfRange(0, original.size).contentEquals(original))
+        readFile { session ->
+            val text = session.pageTextContent(0)
+            assertTrue(text, text.contains(newText))
+            assertFalse(text, text.contains("A second paragraph follows"))
+        }
+        assertFalse(state().editsNotInOriginal)
+        file.delete()
     }
 
     @Test
@@ -559,6 +625,78 @@ class ViewerDeviceTest {
     }
 
     @Test
+    fun aCertificateEncryptedPdfIsRefusedCleanly() {
+        // The app carries no cryptography library of its own (Bouncy Castle is excluded from
+        // the build); certificate-encrypted PDFs are simply refused.
+        try {
+            Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider")
+            throw AssertionError("Bouncy Castle is in the app again: add its licence to the notices, or exclude it")
+        } catch (_: ClassNotFoundException) {
+            // as intended
+        }
+        File(dir, "docs").mkdirs()
+        file = File(File(dir, "docs"), "encrypted_cert.pdf")
+        instrumentation.context.assets.open("fixtures/encrypted_cert.pdf").use { input ->
+            FileOutputStream(file).use { input.copyTo(it) }
+        }
+        // the engine on its own: a plain refusal, not a crash for want of the library
+        try {
+            PdfSession.open(context, file, File(dir, "cert-work")).close()
+            throw AssertionError("a certificate-encrypted file must not open")
+        } catch (_: io.github.legacylive88.simplepdfs.pdfcore.PdfOpenException) {
+            // as intended
+        }
+        // and the app as a whole
+        val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+            .setDataAndType(Uri.fromFile(file), "application/pdf")
+        scenario = ActivityScenario.launch(intent)
+        waitFor("failure reported", 60_000) { state().phase == Phase.FAILED }
+        assertTrue(state().error == R.string.err_password || state().error == R.string.err_open_failed)
+        onView(withId(R.id.homeOpen)).check(matches(isDisplayed()))
+        screenshot("15-certificate-encrypted")
+        // the app is fine afterwards
+        scenario?.close()
+        launch("basic.pdf")
+        assertEquals(2, state().pageCount)
+    }
+
+    @Test
+    fun afterFilesThatCannotBeOpenedTheNextDocumentStillOpens() {
+        // Android 7 miscounts its open documents after a failed open and then crashes in
+        // native code on a later, perfectly good document – once the garbage collector has
+        // finalized the half-built renderer. See RendererFactory.
+        val keptBefore = RendererFactory.keptAliveCount()
+        repeat(3) { round ->
+            File(dir, "docs").mkdirs()
+            file = File(File(dir, "docs"), "broken-$round.pdf")
+            file.writeText("this is not a pdf, attempt $round")
+            val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+                .setDataAndType(Uri.fromFile(file), "application/pdf")
+            scenario = ActivityScenario.launch(intent)
+            waitFor("failure reported", 60_000) { state().phase == Phase.FAILED }
+            scenario?.close()
+            // what used to do the damage
+            repeat(2) {
+                Runtime.getRuntime().gc()
+                System.runFinalization()
+                SystemClock.sleep(200)
+            }
+            launch("basic.pdf")
+            assertEquals(2, state().pageCount)
+            // and it really draws: there is ink where the title is
+            val darkest = darkestAlong(0, locate(0, "Quarterly"))
+            assertTrue("the title should be drawn, darkest was ${Integer.toHexString(darkest)}", (darkest and 0xFF) < 0x90)
+            scenario?.close()
+        }
+        val kept = RendererFactory.keptAliveCount() - keptBefore
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+            assertTrue("one renderer is kept open for every file that failed ($kept)", kept >= 3)
+        } else {
+            assertEquals("newer Android versions need no such thing", 0, RendererFactory.keptAliveCount())
+        }
+    }
+
+    @Test
     fun aLargeDocumentOpensAndCanBeEditedOnALaterPage() {
         launch("big.pdf")
         assertEquals(300, state().pageCount)
@@ -677,7 +815,7 @@ class ViewerDeviceTest {
                     isDisplayed(),
                     withText(containsString("Apache License")),
                     withText(containsString("PdfBox-Android")),
-                    withText(containsString("Bouncy Castle")),
+                    withText(containsString("Material Components for Android")),
                     withText(containsString("SIL OPEN FONT LICENSE")),
                     withText(containsString("DejaVu")),
                 ),

@@ -12,6 +12,7 @@
 -dontwarn com.gemalto.jp2.**
 -dontwarn org.apache.pdfbox.jbig2.**
 
-# BouncyCastle is only reached for certificate-encrypted PDFs.
+# Bouncy Castle is excluded from the build (pdfcore/build.gradle.kts); the two library
+# classes that mention it are only used for certificate-encrypted PDFs.
 -dontwarn org.bouncycastle.**
 -dontwarn javax.naming.**

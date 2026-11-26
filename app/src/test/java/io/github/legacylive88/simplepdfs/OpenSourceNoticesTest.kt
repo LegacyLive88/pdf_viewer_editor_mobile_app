@@ -82,7 +82,6 @@ class OpenSourceNoticesTest {
             // the PDF library and what it is built from or bundles
             "PdfBox-Android", "Apache PDFBox", "Apache FontBox", "Apache License", "Version 2.0, January 2004",
             "Adobe Font Metrics", "CMaps for PDF Fonts", "Adobe Glyph List", "Unicode, Inc.",
-            "The Legion of the Bouncy Castle",
             // the app framework
             "AndroidX", "Material Components for Android", "Kotlin standard library", "kotlinx.coroutines",
             // the fonts written into edited PDFs
@@ -118,5 +117,22 @@ class OpenSourceNoticesTest {
         }
         assertEquals("libraries shipped in the app", 8, shipped)
         assertFalse("test libraries must not be counted as shipped", modules.none { it.startsWith("junit") })
+    }
+
+    /**
+     * The PDF library would bring in Bouncy Castle (a large cryptography library under its own
+     * licence), which this app never uses. It is excluded from the build, so its licence is
+     * not in the notices. If the exclusion goes, the licence has to come back. That the APK
+     * really contains no such classes is checked on a device
+     * (`ViewerDeviceTest.aCertificateEncryptedPdfIsRefusedCleanly`).
+     */
+    @Test
+    fun theOneLibraryThatIsLeftOutOnPurposeIsStillLeftOut() {
+        val engineBuild = File("../pdfcore/build.gradle.kts").readText()
+        assertTrue(
+            "Bouncy Castle is no longer excluded: add its licence to THIRD_PARTY_NOTICES.txt",
+            engineBuild.contains("exclude(group = \"org.bouncycastle\")"),
+        )
+        assertFalse(components.contains("Bouncy Castle"))
     }
 }

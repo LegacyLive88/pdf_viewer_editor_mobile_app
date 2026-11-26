@@ -34,6 +34,10 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   the first. For the usual uniform document nothing moves.
 - Each visible page has a bitmap at screen width; when zoomed in, the visible part is rendered
   again at the exact zoom. Memory use therefore does not grow with zoom or page count.
+- **Turning the phone keeps the reader's place**: whatever was at the top of the visible area
+  (below the title bar) is at the top afterwards, although the pages are then a different
+  size and the bars a different height. The document stays open and a selection in progress
+  is kept (the activity is not restarted).
 - **The app says when it cannot show something.** Android's renderer leaves out things that
   were added on top of a page: stamps, sticky notes and drawings on every Android version,
   and before Android 15 also whatever was typed into form fields. A filled-in form that looks
@@ -56,7 +60,8 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   test compares the measurement with what is really on the screen for a real document.
 - The app only detects that such annotations exist (`PdfSession.otherAnnotationKinds`); it
   does not draw them. Drawing them itself is possible future work.
-- Password-protected PDFs are not supported yet and are reported as such.
+- Password-protected PDFs are not supported yet and are reported as such. So are PDFs
+  encrypted for the holder of a certificate.
 - **Screen readers:** the bars, buttons, dialogs and messages are labelled, but the pages
   themselves are pictures to TalkBack – the text on them is not read out. Selecting by tapping
   words needs sight.
@@ -71,6 +76,7 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 - engine `ExtractionTest`: `basicDocumentIsSegmentedIntoItsParagraphs`,
   `pageRotationAndBoxesGiveTheDisplayedSize`, `structuralVariantsOpen`,
   `somethingThatIsNotAPdfIsRejectedCleanly`, `passwordProtectedDocumentAsksForPassword`,
+  `aCertificateEncryptedPdfIsRefusedCleanlyAndTheEngineCarriesOn`,
   `aLargeDocumentOpensAndAnyPageCanBeRead`
 - app `DocumentViewModelTest`: `openingADocumentShowsItAndThenMakesTextToolsAvailable`,
   `pagesOfDifferentSizesAreMeasuredInTheBackground`, `aFileThatIsNotAPdfIsReportedAndForgotten`,
@@ -79,7 +85,9 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 - app `PdfPagesViewTest`: `pagesAreStackedAtFullWidthAndTheFirstOneIsVisible`,
   `visiblePagesAndTheNextOneAreRenderedAtTheWidthOfTheView`,
   `aRequestThatIsCancelledAndReplacedIsNotMistakenForItsReplacement`, `scrollingStopsAtTheEndsAndReportsThePage`,
-  `newPageSizesKeepTheReaderOnTheSamePage`, `withoutADocumentNothingHappens`
+  `newPageSizesKeepTheReaderOnTheSamePage`, `withoutADocumentNothingHappens`,
+  `turningThePhoneKeepsTheTopOfThePageExactlyWhereItWas`,
+  `turningThePhoneInTheMiddleOfAPageKeepsTheSameLineAtTheTop`
 - engine `ExtractionTest.formFieldsStampsAndNotesAreReportedByKind`
 - app `DocumentViewModelTest`: `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown`,
   `onlyWhatTheRendererLeavesOutIsMentioned`
@@ -91,11 +99,29 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   `aFileThatIsNotAPdfShowsAnErrorInsteadOfCrashing`,
   `aLargeDocumentOpensAndCanBeEditedOnALaterPage`,
   `aProtectedDocumentCanBeViewedAndSelectedButNotChanged`,
+  `aCertificateEncryptedPdfIsRefusedCleanly`,
+  `afterFilesThatCannotBeOpenedTheNextDocumentStillOpens`,
   `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown` (also reads off the screen whether
   this Android version really draws the form field and the stamp),
   `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
 - **Not automated:** the system file picker and "Open with" from other apps (they belong to
-  the system); return after process death; behaviour under memory pressure.
+  the system); return after process death (checked by hand, see TESTING.md); behaviour under
+  memory pressure.
+
+> **Regression note.** The first on-device run on Android 7.0 crashed in native code when a
+> document was opened after another file had *failed* to open. It is a defect of that Android
+> version (fixed in Android 8): a renderer whose creation fails is still closed later by the
+> garbage collector, which throws off the platform's count of open documents, and the PDF
+> library is then shut down – or not started – at the wrong moment. `RendererFactory` hands
+> the lost count back by keeping one small spare renderer open for every failure. Guarded by
+> the device test `afterFilesThatCannotBeOpenedTheNextDocumentStillOpens`, which only proves
+> something when run on Android 7.
+
+> **Regression note.** The first on-device rotation test (Android 16) found that turning the
+> phone left the end of the previous page showing above the page being read: the place was
+> remembered as a fraction of the page's height even when it lay in the gap *above* the page,
+> and the title bar changes height in the same layout pass. Guarded by the two
+> `turningThePhone…` tests in `PdfPagesViewTest` and by the device test.
 
 ---
 
@@ -173,7 +199,8 @@ screen. A small round button in the top corner brings them back; so does the Bac
 
 **Tested today**
 - app: `toolsCanBeHiddenAndShown`,
-  `PdfPagesViewTest.toolbarsThatCoverThePagesMoveTheContentClearOfThem`
+  `PdfPagesViewTest.toolbarsThatCoverThePagesMoveTheContentClearOfThem`,
+  `PdfPagesViewTest.barsThatOnlyHideOrShowDoNotMoveThePages`
 - device: `feature3_toolsCanBeHiddenAndShownAgain`
 - **Not automated:** Back-button handling; appearance with gesture vs. three-button navigation.
 
@@ -433,6 +460,9 @@ Applies to features 5 and 6.
   verifier with the real renderer, including a change outside the declared area being refused
 - device: both feature tests check that the file on disk grew and that its original bytes are
   an untouched prefix.
+- device: `aDocumentOpenedThroughAContentUriIsEditedInPlaceThroughItsProvider` – the way
+  documents really arrive (a `content://` address with read and write permission): the name
+  comes from the provider, and the edit is written back through it as an appended tail.
 - cross-check: qpdf opens every written file *without recovery* and reports no problems.
 - **Not tested:** power loss during a write (the design limits the damage to the appended
   tail, but this has not been exercised); real cloud storage providers.
@@ -453,8 +483,10 @@ the app.
   Font License asks that the font licence can be "easily viewed by the user".
 - The texts are kept **verbatim** in the repository: `app/src/main/assets/licenses/
   THIRD_PARTY_NOTICES.txt` (assembled from the `LICENSE` and `NOTICE` files inside the Apache
-  PDFBox and FontBox 2.0.27 jars and from Bouncy Castle's own licence class) and
-  `pdfcore/src/main/assets/fonts/LICENSE.txt` beside the fonts.
+  PDFBox and FontBox 2.0.27 jars) and `pdfcore/src/main/assets/fonts/LICENSE.txt` beside the
+  fonts.
+- Bouncy Castle, which the PDF library would normally bring along, is **not in the app** (see
+  BUILD_AND_RELEASE.md → Size), so its licence is not listed. A test guards the exclusion.
 - For display the hard line breaks inside paragraphs are removed (`OpenSourceNotices.reflow`),
   because text wrapped at 78 columns breaks a second time on a phone. No word is changed.
 - A test fails when a library is added to the build without being added to the notices.
@@ -469,9 +501,10 @@ the app.
   opens from the menu and shows the text; a new dependency cannot be added unnoticed.
 
 **Tested today**
-- app `OpenSourceNoticesTest` (5 tests): `wrappedLinesAreJoinedAndShortLinesKeepTheirBreak`,
+- app `OpenSourceNoticesTest` (6 tests): `wrappedLinesAreJoinedAndShortLinesKeepTheirBreak`,
   `copyrightStatementsAndDifferentlyIndentedLinesAreNeverRunTogether`,
   `reflowingTheRealLicencesChangesNoWord`, `everyComponentInTheAppIsNamedWithItsLicence`,
-  `everyLibraryTheBuildShipsIsCoveredByTheNotices`
+  `everyLibraryTheBuildShipsIsCoveredByTheNotices`,
+  `theOneLibraryThatIsLeftOutOnPurposeIsStillLeftOut`
 - device: `aboutShowsTheVersionAndTheOpenSourceLicences`
 - **Not automated:** whether the list of *indirect* dependencies is complete.
