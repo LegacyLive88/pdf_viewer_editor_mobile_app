@@ -63,10 +63,10 @@ class FakeRasterizer(val file: File, private val sizes: List<FloatArray>, privat
 }
 
 /** Like the app's verifier, but using PDFBox to re-read the written file. */
-val reloadVerifier = SaveVerifier { file, expectedPageCount, touchedPages ->
-    PDDocument.load(file).use { doc ->
+val reloadVerifier = SaveVerifier { candidate, _, expectedPageCount, changes ->
+    PDDocument.load(candidate).use { doc ->
         check(doc.numberOfPages == expectedPageCount)
-        for (p in touchedPages) doc.getPage(p).contents.use { it.readBytes() }
+        for (c in changes) doc.getPage(c.pageIndex).contents.use { it.readBytes() }
     }
 }
 

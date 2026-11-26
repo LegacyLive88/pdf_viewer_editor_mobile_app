@@ -25,8 +25,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.graphics.HardwareRendererCompat
 import io.github.legacylive88.simplepdfs.pdfcore.MarkupKind
+import io.github.legacylive88.simplepdfs.pdfcore.PageChange
+import io.github.legacylive88.simplepdfs.pdfcore.PageSize
+import io.github.legacylive88.simplepdfs.pdfcore.PdfPoint
 import io.github.legacylive88.simplepdfs.pdfcore.PdfSession
 import io.github.legacylive88.simplepdfs.pdfcore.Quad
+import io.github.legacylive88.simplepdfs.render.PlatformRasterizer
 import io.github.legacylive88.simplepdfs.view.PdfPagesView
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.containsString
@@ -487,6 +491,53 @@ class ViewerDeviceTest {
         // and beside the line the page is still plain paper
         val beside = colourAt(1, floatArrayOf(quad.left - 6f, (quad.top + quad.bottom) / 2f))
         assertFalse("no tint beside the line, was ${Integer.toHexString(beside)}", isHighlightTint(beside))
+    }
+
+    @Test
+    fun theSaveVerifierAcceptsACleanEditAndRejectsOneThatChangesSomethingElse() {
+        // No UI here: this exercises the gate every edit must pass, with the real renderer.
+        File(dir, "docs").mkdirs()
+        val original = File(File(dir, "docs"), "verify.pdf")
+        instrumentation.context.assets.open("fixtures/basic.pdf").use { input -> FileOutputStream(original).use { input.copyTo(it) } }
+
+        // An edit made with the real verifier in place goes through.
+        val session = PdfSession.open(context, original, File(dir, "verify-work"), PlatformRasterizer.VERIFIER)
+        val hit = session.findText(0, "follows", ignoreCase = false).first().quads[0]
+        val paragraph = session.paragraphAt(0, PdfPoint((hit.left + hit.right) / 2f, (hit.top + hit.bottom) / 2f))!!
+        assertTrue(session.replaceParagraph(paragraph, "Replaced under the eyes of the verifier.").changed)
+        val edited = File(dir, "verify-edited.pdf")
+        session.copyTo(edited)
+        session.close()
+
+        val size = PageSize(612f, 792f)
+        // The same pair of files, honestly described: accepted.
+        val honest = PageChange(0, size, true, paragraph.quads + Quad(72f, 200f, 420f, 200f, 420f, 250f, 72f, 250f))
+        PlatformRasterizer.VERIFIER.verify(edited, original, 2, listOf(honest))
+
+        // Now claim the edit was somewhere else on the page. To the verifier this is an edit
+        // that changed text outside its area – exactly what collateral damage looks like.
+        val elsewhere = PageChange(0, size, true, listOf(Quad(72f, 600f, 300f, 600f, 300f, 640f, 72f, 640f)))
+        try {
+            PlatformRasterizer.VERIFIER.verify(edited, original, 2, listOf(elsewhere))
+            throw AssertionError("a change outside the declared area must be rejected")
+        } catch (e: java.io.IOException) {
+            assertTrue(e.message, e.message!!.contains("other parts of page 1"))
+        }
+
+        // A wrong page count is rejected, and so is something that is not a PDF at all.
+        try {
+            PlatformRasterizer.VERIFIER.verify(edited, original, 3, listOf(honest))
+            throw AssertionError("a wrong page count must be rejected")
+        } catch (e: java.io.IOException) {
+            assertTrue(e.message, e.message!!.contains("Page count"))
+        }
+        val junk = File(dir, "junk.pdf").apply { writeText("not a pdf") }
+        try {
+            PlatformRasterizer.VERIFIER.verify(junk, original, 2, listOf(honest))
+            throw AssertionError("junk must be rejected")
+        } catch (e: java.io.IOException) {
+            // expected
+        }
     }
 
     @Test

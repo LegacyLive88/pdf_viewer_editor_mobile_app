@@ -32,10 +32,14 @@ abstract class PdfTestBase {
     protected val context: Context get() = ApplicationProvider.getApplicationContext()
 
     /** Verifier used in tests: the written file must be loadable by a fresh PDFBox instance. */
-    protected val reloadVerifier = SaveVerifier { file, expectedPageCount, touchedPages ->
-        PDDocument.load(file).use { doc ->
+    protected val reloadVerifier = SaveVerifier { candidate, previous, expectedPageCount, changes ->
+        check(previous.isFile && candidate.length() > 0) { "verifier must be given both files" }
+        PDDocument.load(candidate).use { doc ->
             check(doc.numberOfPages == expectedPageCount) { "page count ${doc.numberOfPages} != $expectedPageCount" }
-            for (p in touchedPages) doc.getPage(p).contents.use { it.readBytes() }
+            for (c in changes) {
+                check(c.area.isNotEmpty()) { "an edit must say where it changed the page" }
+                doc.getPage(c.pageIndex).contents.use { it.readBytes() }
+            }
         }
     }
 
@@ -81,6 +85,9 @@ abstract class PdfTestBase {
      * @param mustNotContain per page index: strings that must be gone
      * @param highlights expected highlight boxes as `page:left,top,right,bottom` in display space
      * @param untouchedPrefixOf if set, the artifact must start with exactly this file's bytes
+     * @param changedAreas `page:left,top,right,bottom` boxes (display space) where an edit put or
+     *   removed text; rendered, the page must be identical to the original everywhere else
+     * @param unchangedPages pages that must render identically to the original
      */
     protected fun publish(
         label: String,
@@ -91,6 +98,8 @@ abstract class PdfTestBase {
         highlights: List<String> = emptyList(),
         highlightCount: Map<Int, Int> = emptyMap(),
         untouchedPrefixOf: File? = null,
+        changedAreas: List<String> = emptyList(),
+        unchangedPages: List<Int> = emptyList(),
     ) {
         val dir = artifactDir()
         val target = File(dir, "$label.pdf")
@@ -115,6 +124,8 @@ abstract class PdfTestBase {
             append(",\"must_not_contain\":${mapJson(mustNotContain)}")
             append(",\"highlights\":" + highlights.joinToString(",", "[", "]") { "\"${esc(it)}\"" })
             append(",\"highlight_count\":" + highlightCount.entries.joinToString(",", "{", "}") { "\"${it.key}\":${it.value}" })
+            append(",\"changed_areas\":" + changedAreas.joinToString(",", "[", "]") { "\"${esc(it)}\"" })
+            append(",\"unchanged_pages\":" + unchangedPages.joinToString(",", "[", "]"))
             if (untouchedPrefixOf != null) append(",\"original\":\"${esc("$label.original.pdf")}\"")
             append("}")
         }
@@ -150,6 +161,10 @@ abstract class PdfTestBase {
     protected fun paragraphWith(session: PdfSession, page: Int, word: String, occurrence: Int = 0): ParagraphInfo =
         session.paragraphAt(page, pointOf(session, page, word, occurrence))
             ?: throw AssertionError("no paragraph at '$word'")
+
+    /** The line boxes of paragraphs as `page:left,top,right,bottom` strings, for [publish]. */
+    protected fun areasOf(vararg paragraphs: ParagraphInfo): List<String> =
+        paragraphs.flatMap { p -> p.quads.map { "${p.pageIndex}:${quadBox(it)}" } }
 
     protected fun quadBox(q: Quad) = String.format(java.util.Locale.US, "%.2f,%.2f,%.2f,%.2f", q.left, q.top, q.right, q.bottom)
 

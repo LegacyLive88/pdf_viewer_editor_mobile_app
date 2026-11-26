@@ -257,12 +257,13 @@ class PdfSession private constructor(
         checkOpen()
         requireAllowed(capabilities.canAnnotate)
         requireFresh(selection.pageIndex, selection.pageRevision)
-        transact(selection.pageIndex) {
+        transact {
             val page = doc.getPage(selection.pageIndex)
             val geom = PageGeometry.of(page)
             Markup.removeHighlights(doc, page, geom, selection.quads)?.let { dirty.addAll(it) }
             Markup.addHighlight(doc, page, geom, selection.quads, colorRgb, selection.text.ifEmpty { null })
             dirty.add(page.cosObject)
+            Change(Unit, PageChange(selection.pageIndex, pageSize(selection.pageIndex), false, selection.quads))
         }
     }
 
@@ -282,10 +283,11 @@ class PdfSession private constructor(
         // Dry run first so "nothing to remove" does not cost a save.
         val existing = Markup.read(page, selection.pageIndex, geom).filter { it.kind == MarkupKind.HIGHLIGHT }
         if (existing.none { Markup.subtract(it.quads, selection.quads) != null }) return false
-        transact(selection.pageIndex) {
+        transact {
             val modified = Markup.removeHighlights(doc, page, geom, selection.quads)
             if (modified != null) dirty.addAll(modified)
             dirty.add(page.cosObject)
+            Change(Unit, PageChange(selection.pageIndex, pageSize(selection.pageIndex), false, selection.quads))
         }
         return true
     }
@@ -323,15 +325,45 @@ class PdfSession private constructor(
             )
         }
 
-        return transact(pageIndex) {
+        val oldArea = before.lineQuads(p)
+        return transact {
             val outcome = editor.replace(p, newText)
             val page = doc.getPage(pageIndex)
             dirty.add(page.cosObject)
             revisions[pageIndex]++
             textCache.remove(pageIndex)
-            verifyUntouchedText(before, p, pageText(pageIndex), outcome.originalOperatorCount)
-            ParagraphEditResult(true, outcome.fontScale, outcome.overflowed, outcome.lineCount)
+            val after = pageText(pageIndex)
+            verifyUntouchedText(before, p, after, outcome.originalOperatorCount)
+            val area = ArrayList(oldArea)
+            boundsOfNewText(after, outcome.originalOperatorCount)?.let { area.add(it) }
+            Change(
+                ParagraphEditResult(true, outcome.fontScale, outcome.overflowed, outcome.lineCount),
+                PageChange(pageIndex, pageSize(pageIndex), true, area),
+            )
         }
+    }
+
+    /** Box around the text an edit has just added (everything after the original operators). */
+    private fun boundsOfNewText(after: PageText, originalOperatorCount: Int): Quad? {
+        var left = Float.MAX_VALUE
+        var top = Float.MAX_VALUE
+        var right = -Float.MAX_VALUE
+        var bottom = -Float.MAX_VALUE
+        for (g in after.glyphs) {
+            if (g.ctx != 0 || g.op < originalOperatorCount) continue
+            // the four corners of the glyph's box: along the baseline, and up/down from it
+            val upX = g.dirY
+            val upY = -g.dirX
+            for (along in floatArrayOf(0f, g.width)) for (rise in floatArrayOf(g.asc, g.desc)) {
+                val x = g.ox + g.dirX * along + upX * rise
+                val y = g.oy + g.dirY * along + upY * rise
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+        return if (right < left) null else Quad(left, top, right, top, right, bottom, left, bottom)
     }
 
     private fun normalise(s: String): String = s.trim().replace(Regex("\\s+"), " ")
@@ -379,12 +411,15 @@ class PdfSession private constructor(
         }
     }
 
+    /** The value an edit returns to its caller, plus what it did for the verifier. */
+    private class Change<T>(val value: T, val page: PageChange)
+
     /** Runs a change, saves it, and rolls everything back if any step fails. */
-    private inline fun <T> transact(pageIndex: Int, change: () -> T): T {
+    private inline fun <T> transact(change: () -> Change<T>): T {
         try {
             val result = change()
-            save(setOf(pageIndex))
-            return result
+            save(result.page)
+            return result.value
         } catch (e: PdfEditException) {
             rollback()
             throw e
@@ -399,7 +434,7 @@ class PdfSession private constructor(
 
     // --- saving -----------------------------------------------------------------------------------
 
-    private fun save(touchedPages: Set<Int>) {
+    private fun save(change: PageChange) {
         val tmp = File(workDir, "edited.tmp")
         tmp.delete()
         val source = RandomAccessBufferedFileInputStream(baseFile)
@@ -425,7 +460,7 @@ class PdfSession private constructor(
 
         try {
             structuralCheck(tmp)
-            verifier?.verify(tmp, pageCount, touchedPages)
+            verifier?.verify(tmp, currentFile, pageCount, listOf(change))
         } catch (e: Exception) {
             tmp.delete()
             throw PdfEditException(

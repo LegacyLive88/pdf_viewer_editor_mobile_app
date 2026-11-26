@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import io.github.legacylive88.simplepdfs.pdfcore.PageChange
 import io.github.legacylive88.simplepdfs.pdfcore.SaveVerifier
 import java.io.Closeable
 import java.io.File
@@ -99,24 +100,73 @@ class PlatformRasterizer private constructor(private val renderer: PdfRenderer) 
 
         /**
          * Accepts a file written by the engine only if the platform's own PDF implementation
-         * opens it, agrees on the page count and can draw the pages that were changed. This is
-         * the gate every edit passes before it is allowed to replace the user's document.
+         *  - opens it and agrees on the page count,
+         *  - can draw every page that was touched, and
+         *  - for a page whose content was rewritten, draws it **identically to before outside
+         *    the edited area** (see [RenderComparison]).
+         * This is the gate every edit passes before it may replace the user's document.
          */
-        val VERIFIER = SaveVerifier { file, expectedPageCount, touchedPages ->
-            open(file).use { r ->
-                if (r.pageCount != expectedPageCount) {
-                    throw IOException("Page count changed from $expectedPageCount to ${r.pageCount}")
+        val VERIFIER = SaveVerifier { candidate, previous, expectedPageCount, changes ->
+            open(candidate).use { after ->
+                if (after.pageCount != expectedPageCount) {
+                    throw IOException("Page count changed from $expectedPageCount to ${after.pageCount}")
                 }
-                val probe = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
+                var before: PlatformRasterizer? = null
                 try {
-                    for (page in touchedPages) {
-                        val size = r.pageSize(page)
-                        if (size[0] <= 0f || size[1] <= 0f) throw IOException("Page ${page + 1} has no size")
-                        r.render(page, probe, 48f / size[0], 0f, 0f)
+                    for (change in changes) {
+                        val size = after.pageSize(change.pageIndex)
+                        if (size[0] <= 0f || size[1] <= 0f) throw IOException("Page ${change.pageIndex + 1} has no size")
+                        if (!change.contentChanged) {
+                            // Annotations do not alter how page content renders; just prove the page still draws.
+                            val probe = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
+                            try {
+                                after.render(change.pageIndex, probe, 48f / size[0], 0f, 0f)
+                            } finally {
+                                probe.recycle()
+                            }
+                            continue
+                        }
+                        val old = before ?: open(previous).also { before = it }
+                        comparePage(old, after, change, size)
                     }
                 } finally {
-                    probe.recycle()
+                    before?.close()
                 }
+            }
+        }
+
+        private const val COMPARE_WIDTH = 520f
+        private const val COMPARE_MAX_HEIGHT = 1400f
+
+        private fun comparePage(before: PlatformRasterizer, after: PlatformRasterizer, change: PageChange, size: FloatArray) {
+            val oldSize = before.pageSize(change.pageIndex)
+            if (oldSize[0] != size[0] || oldSize[1] != size[1]) {
+                throw IOException("Page ${change.pageIndex + 1} changed size")
+            }
+            val scale = minOf(COMPARE_WIDTH / size[0], COMPARE_MAX_HEIGHT / size[1])
+            val width = maxOf(1, (size[0] * scale).toInt())
+            val height = maxOf(1, (size[1] * scale).toInt())
+            val a = IntArray(width * height)
+            val b = IntArray(width * height)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            try {
+                before.render(change.pageIndex, bitmap, scale, 0f, 0f)
+                bitmap.getPixels(a, 0, width, 0, 0, width, height)
+                after.render(change.pageIndex, bitmap, scale, 0f, 0f)
+                bitmap.getPixels(b, 0, width, 0, 0, width, height)
+            } finally {
+                bitmap.recycle()
+            }
+            // The engine and the renderer normally agree on the page size; if not (a PDF
+            // "UserUnit"), the change's coordinates are converted.
+            val unitScale = if (change.pageSize.width > 0f && kotlin.math.abs(change.pageSize.width - size[0]) > 1.5f) {
+                size[0] / change.pageSize.width
+            } else {
+                1f
+            }
+            val different = RenderComparison.differingPixels(a, b, width, height, RenderComparison.mask(change, scale, unitScale))
+            if (different > RenderComparison.tolerated(width, height)) {
+                throw IOException("The edit would also change other parts of page ${change.pageIndex + 1} ($different pixels differ)")
             }
         }
     }

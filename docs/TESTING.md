@@ -10,7 +10,7 @@ There are four layers. Each catches things the others cannot.
 | Device tests | The real app on real Android: platform renderer, touch input, the file on disk | `./gradlew :app:connectedDebugAndroidTest` | emulator or phone |
 
 Everything except the device tests runs on any machine with a JDK, in about a minute:
-84 engine tests and 48 app tests.
+84 engine tests and 54 app tests.
 
 ```bash
 ./gradlew :pdfcore:testDebugUnitTest :app:testDebugUnitTest
@@ -62,6 +62,7 @@ fixtures are committed, so tests do not need any of that.
 | `DocumentViewModelTest` | 25 | opening, the select gesture, copy/highlight/remove, paragraph editing, save copy, share, read-only sources, error messages |
 | `DocumentSourceTest` | 7 | writing only the tail vs the whole file, read-only detection, recent documents |
 | `PdfPagesViewTest` | 16 | page layout, scrolling, zoom limits and focus, render requests, tap and double-tap reporting |
+| `RenderComparisonTest` | 6 | the before/after picture comparison used to verify paragraph edits (plain JUnit) |
 
 The view model tests use the **real engine and real files**; only the pixel renderer is
 replaced by `FakeRasterizer`, since Android's `PdfRenderer` does not exist on the JVM. After
@@ -81,7 +82,9 @@ implementations that share no code with the engine:
   the old;
 - **PDFium** reports each highlight at the expected place – computed with PDFium's own
   page-to-device mapping, which independently verifies rotation and crop-box handling – and
-  when the page is rendered the box is tinted while the text in it is still dark.
+  when the page is rendered the box is tinted while the text in it is still dark;
+- rendered by **PDFium**, an edited page is pixel-identical to the original everywhere outside
+  the edited paragraph, and pages that were not edited are identical altogether.
 
 ```bash
 pip install pypdfium2 pymupdf pikepdf numpy pillow
@@ -99,7 +102,7 @@ that shrank (PDFium then ignores objects), a cross-reference stream without its 
 
 ## 4. Device tests (`app/src/androidTest`)
 
-`ViewerDeviceTest` (12 tests) launches the real activity through an "Open with" intent, sends
+`ViewerDeviceTest` (13 tests) launches the real activity through an "Open with" intent, sends
 real touch events and checks pixels on screen, the clipboard and the file on disk. Screenshots
 of the key moments are written to the app's `files/device-test-screens/`.
 
@@ -121,7 +124,8 @@ Notes:
 
 ## What is not covered by any automated test
 
-- How an edited page *looks* – checked by eye from renders, not by pixel comparison.
+- Whether a re-typeset paragraph *looks good* – checked by eye from renders. (That nothing
+  *else* on the page changed is checked automatically, by pixel comparison.)
 - Two-finger pinch on real hardware; the system picker and share sheet; cloud storage
   providers; Android versions other than the one the device tests ran on.
 - Power loss during a save.

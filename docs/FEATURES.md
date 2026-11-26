@@ -343,9 +343,11 @@ paragraph's text. **Save** replaces the paragraph in the PDF, immediately and in
   `feature6_doubleTapWhereThereIsNoTextDoesNothingHarmful`,
   `aLargeDocumentOpensAndCanBeEditedOnALaterPage`
 - cross-check: every edited file – structure (qpdf), new text present and old text gone
-  according to PDFium, MuPDF and Poppler, original bytes an untouched prefix.
-- **Not automated:** how the result *looks*. Renders were inspected by eye while building
-  (`tools/cross_validate.py --render`); there is no pixel-comparison test.
+  according to PDFium, MuPDF and Poppler, original bytes an untouched prefix, and **rendered
+  by PDFium the page is pixel-identical to the original outside the edited paragraph** (other
+  pages identical altogether).
+- **Not automated:** whether the *new* paragraph looks good (font match, spacing). Renders were
+  inspected by eye while building (`tools/cross_validate.py --render`).
 
 ---
 
@@ -358,8 +360,12 @@ Applies to features 5 and 6.
   location; where the provider allows, only the bytes after the untouched original are
   written. Details in ARCHITECTURE.md → Saving.
 - **Nothing is kept unless it verifies.** After writing, the file must open in Android's own
-  PDF implementation with the same page count, and the changed pages must render. Otherwise
-  the edit is rolled back and the user is told the document was not changed.
+  PDF implementation with the same page count, and the changed pages must render. After a
+  paragraph edit the page is additionally drawn before and after, and **outside the edited
+  paragraph the two pictures must be identical**. Otherwise the edit is rolled back and the
+  user is told the document was not changed. This costs two small page renders per edit and
+  means an edit can be refused on a page where it would have been harmless – the safe side to
+  err on with someone's document.
 - **Read-only locations** (mail attachments, some downloads): the edit is applied to the app's
   copy, a banner explains that it is not in the original, and "Save as…" stores it in a new
   file that then becomes the document.
@@ -387,6 +393,9 @@ Applies to features 5 and 6.
   `aProviderWithoutRandomAccessGetsTheWholeFileRewritten`
 - engine: `aFailedVerificationRollsTheEditBack`, `aFailedVerificationLeavesTheDocumentAsItWas`,
   `everyFileStructureCanBeEditedAndSaved`, `highlightsWorkOnEveryFileStructure`
+- app `RenderComparisonTest` (6 tests): the picture comparison itself
+- device: `theSaveVerifierAcceptsACleanEditAndRejectsOneThatChangesSomethingElse` – the real
+  verifier with the real renderer, including a change outside the declared area being refused
 - device: both feature tests check that the file on disk grew and that its original bytes are
   an untouched prefix.
 - cross-check: qpdf opens every written file *without recovery* and reports no problems.

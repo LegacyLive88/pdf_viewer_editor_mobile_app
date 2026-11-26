@@ -67,7 +67,7 @@ class HighlightTest : PdfTestBase() {
         publish("highlighted", s.currentFile, pages = 2,
             mustContain = mapOf(0 to listOf("Sales grew steadily", "Quarterly Report")),
             highlights = sel.quads.map { "0:${quadBox(it)}" }, highlightCount = mapOf(0 to 1, 1 to 0),
-            untouchedPrefixOf = original)
+            untouchedPrefixOf = original, unchangedPages = listOf(0, 1))
     }
 
     @Test
@@ -197,7 +197,9 @@ class HighlightTest : PdfTestBase() {
         }
         val again = reopen(s.currentFile)
         for (page in 0 until again.pageCount) assertEquals(1, highlights(again, page).size)
-        publish("rotated", s.currentFile, pages = 7, highlights = expected, highlightCount = counts, untouchedPrefixOf = original)
+        // a highlight is an annotation: the page content itself must render exactly as before
+        publish("rotated", s.currentFile, pages = 7, highlights = expected, highlightCount = counts, untouchedPrefixOf = original,
+            unchangedPages = (0 until 7).toList())
     }
 
     @Test
@@ -232,7 +234,7 @@ class HighlightTest : PdfTestBase() {
             assertEquals(name, s.paragraphTexts(0), again.paragraphTexts(0))
             publish(name.removeSuffix(".pdf"), s.currentFile, pages = s.pageCount,
                 highlights = sel.quads.map { "0:${quadBox(it)}" }, highlightCount = mapOf(0 to 1),
-                untouchedPrefixOf = original)
+                untouchedPrefixOf = original, unchangedPages = (0 until minOf(s.pageCount, 3)).toList())
         }
     }
 
@@ -240,9 +242,9 @@ class HighlightTest : PdfTestBase() {
     fun aFailedVerificationRollsTheEditBack() {
         val original = fixture("basic.pdf")
         var reject = false
-        val verifier = SaveVerifier { file, pages, touched ->
+        val verifier = SaveVerifier { candidate, previous, pages, changes ->
             if (reject) throw IllegalStateException("simulated: another PDF reader cannot open this")
-            reloadVerifier.verify(file, pages, touched)
+            reloadVerifier.verify(candidate, previous, pages, changes)
         }
         val s = open(original, verifier)
         s.addHighlight(selectWords(s, 0, "Sales", "grew"))

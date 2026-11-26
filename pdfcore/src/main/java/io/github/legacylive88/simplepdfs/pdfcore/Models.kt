@@ -182,17 +182,35 @@ class PdfEditException(val reason: Reason, message: String, cause: Throwable? = 
 }
 
 /**
+ * What an edit did to one page, as told to a [SaveVerifier].
+ *
+ * @property contentChanged true when the page's own content was rewritten (a paragraph edit);
+ *   false when only annotations changed (highlights), which never alters how page content renders
+ * @property area where the change is, in display space: the old and the new text of an edited
+ *   paragraph, or the selection of a highlight. Everything outside it must look exactly as before.
+ */
+class PageChange(
+    val pageIndex: Int,
+    /** Size of the page in the same display space as [area]. */
+    val pageSize: PageSize,
+    val contentChanged: Boolean,
+    val area: List<Quad>,
+)
+
+/**
  * Checks a freshly written file before the engine accepts it as the new document state.
- * The app supplies an implementation backed by an independent parser (Android's PdfRenderer),
- * so an edit is only ever kept if a second PDF implementation can open the result.
+ * The app supplies an implementation backed by an independent PDF implementation (Android's
+ * PdfRenderer), so an edit is only ever kept if a second implementation can open the result
+ * and agrees that nothing outside the edited area changed.
  */
 fun interface SaveVerifier {
     /**
-     * @param file the candidate file
+     * @param candidate the newly written file
+     * @param previous the document as it was before this edit
      * @param expectedPageCount number of pages the document must have
-     * @param touchedPages pages that were modified and should be opened as a spot check
-     * @throws Exception if the file is not acceptable
+     * @param changes what was changed
+     * @throws Exception if the candidate is not acceptable
      */
     @Throws(Exception::class)
-    fun verify(file: java.io.File, expectedPageCount: Int, touchedPages: Set<Int>)
+    fun verify(candidate: java.io.File, previous: java.io.File, expectedPageCount: Int, changes: List<PageChange>)
 }

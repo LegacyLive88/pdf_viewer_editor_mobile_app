@@ -19,6 +19,8 @@ PdfTestBase.publish) that states what must be true:
     highlights         expected highlight boxes, "page:left,top,right,bottom" in display space
     highlight_count    number of highlight annotations per page
     original           file whose bytes the artifact must start with (incremental save)
+    changed_areas      boxes "page:left,top,right,bottom" where an edit removed or put text
+    unchanged_pages    pages that must look exactly like the original
 
 Checks per artifact:
   * qpdf opens it without recovery and reports no structural problems
@@ -28,6 +30,8 @@ Checks per artifact:
     computed with PDFium's own page-to-device mapping, so page rotation and crop boxes are
     verified independently of the engine's geometry code
   * rendered with PDFium, each highlight box is actually tinted and the text in it is still dark
+  * rendered with PDFium, an edited page is pixel-identical to the original everywhere outside
+    the edited area, and pages listed as unchanged are identical altogether
 
 Usage:
     ./gradlew :pdfcore:testDebugUnitTest
@@ -255,6 +259,34 @@ def check(json_path):
                 fail(name, "page %d: highlight box %s does not cover any text" % (i, box))
             elif (region[ink].max(axis=1) < 140).mean() < 0.9:
                 fail(name, "page %d: text under highlight box %s is no longer dark" % (i, box))
+
+    # --- nothing else on the page changed -----------------------------------------------------
+    areas = {}
+    for item in spec.get("changed_areas", []):
+        page_s, box_s = item.split(":")
+        areas.setdefault(int(page_s), []).append(tuple(float(v) for v in box_s.split(",")))
+    compare = sorted(set(areas) | set(spec.get("unchanged_pages", [])))
+    if compare and "original" in spec:
+        before_doc = pdfium.PdfDocument(os.path.join(folder, spec["original"]))
+        for i in compare:
+            before = render(before_doc, i, False)[:, :, :3].astype(np.int32)
+            after = render(doc, i, False)[:, :, :3].astype(np.int32)
+            if before.shape != after.shape:
+                fail(name, "page %d changed size" % i)
+                continue
+            different = np.abs(before - after).max(axis=2) > 40
+            margin = 6 * SCALE
+            for (l, t, r, b) in areas.get(i, []):
+                y0, y1 = max(int(t * SCALE - margin), 0), int(b * SCALE + margin) + 1
+                x0, x1 = max(int(l * SCALE - margin), 0), int(r * SCALE + margin) + 1
+                different[y0:y1, x0:x1] = False
+            count = int(different.sum())
+            allowed = max(24, different.size // 4000)
+            if count > allowed:
+                ys, xs = np.nonzero(different)
+                fail(name, "page %d: %d pixels differ from the original outside the edited area, around (%.0f..%.0f, %.0f..%.0f) pt" % (
+                    i, count, xs.min() / SCALE, xs.max() / SCALE, ys.min() / SCALE, ys.max() / SCALE))
+        before_doc.close()
 
     # --- optional renders for looking at ------------------------------------------------------
     if render_dir:

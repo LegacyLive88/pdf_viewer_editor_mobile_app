@@ -104,7 +104,7 @@ class ParagraphEditTest : PdfTestBase() {
             mustContain = mapOf(0 to listOf(newText, "Quarterly Report", "A second paragraph follows", "Publish the roadmap"),
                 1 to listOf("The second page has a single line of text.")),
             mustNotContain = mapOf(0 to listOf("revenue", "Sales grew steadily", "major surprises")),
-            untouchedPrefixOf = original)
+            untouchedPrefixOf = original, changedAreas = areasOf(para, now), unchangedPages = listOf(1))
     }
 
     @Test
@@ -233,13 +233,15 @@ class ParagraphEditTest : PdfTestBase() {
         val original = fixture("basic.pdf")
         val s = open(original)
         val before = otherWords(s, 0, "The first paragraph")
-        val result = s.replaceParagraph(paragraphWith(s, 0, "Sales"), "   ")
+        val para = paragraphWith(s, 0, "Sales")
+        val result = s.replaceParagraph(para, "   ")
         assertTrue(result.changed)
         assertEquals(0, result.lineCount)
         assertSameWords(before, s.wordBoxes(0))
         assertNull(s.paragraphAt(0, PdfPoint(200f, 160f)))
         publish("deleted", s.currentFile, pages = 2, mustContain = mapOf(0 to listOf("A second paragraph follows")),
-            mustNotContain = mapOf(0 to listOf("revenue", "The first paragraph")), untouchedPrefixOf = original)
+            mustNotContain = mapOf(0 to listOf("revenue", "The first paragraph")), untouchedPrefixOf = original,
+            changedAreas = areasOf(para), unchangedPages = listOf(1))
     }
 
     @Test
@@ -280,20 +282,23 @@ class ParagraphEditTest : PdfTestBase() {
         assertSameWords(before, otherWords(s, 0, "This justified paragraph"))
         publish("justified", s.currentFile, pages = 1,
             mustContain = mapOf(0 to listOf(newText, "A Justified Chapter", "Paragraphs in this fixture", "A short final paragraph")),
-            mustNotContain = mapOf(0 to listOf("stretches the spaces")), untouchedPrefixOf = original)
+            mustNotContain = mapOf(0 to listOf("stretches the spaces")), untouchedPrefixOf = original, changedAreas = areasOf(para, now))
     }
 
     @Test
     fun editingOneColumnDoesNotDisturbTheOther() {
-        val s = open("columns.pdf")
+        val original = fixture("columns.pdf")
+        val s = open(original)
         val right = otherWords(s, 0, "The left column")
-        s.replaceParagraph(paragraphWith(s, 0, "apples,"), "The left column now talks about oranges and lemons, which grow in warm places and are picked in winter.")
+        val old = paragraphWith(s, 0, "apples,")
+        s.replaceParagraph(old, "The left column now talks about oranges and lemons, which grow in warm places and are picked in winter.")
         assertSameWords(right, otherWords(s, 0, "The left column now"))
         val now = paragraphWith(s, 0, "oranges")
         assertTrue("stays in the left column: ${now.right}", now.right < 300f)
         publish("columns", s.currentFile, pages = 1,
             mustContain = mapOf(0 to listOf("oranges and lemons", "The right column is written second", "ferries, tugs and barges")),
-            mustNotContain = mapOf(0 to listOf("apples")))
+            mustNotContain = mapOf(0 to listOf("apples")),
+            untouchedPrefixOf = original, changedAreas = areasOf(old, now))
     }
 
     @Test
@@ -321,7 +326,8 @@ class ParagraphEditTest : PdfTestBase() {
         publish("form", s.currentFile, pages = 2,
             mustContain = mapOf(0 to listOf("Edited on the first page only.", "Outer form text stays untouched.", "Direct page text on page 1."),
                 1 to listOf("Text inside a nested form object that is", "drawn on more than one page.", "Outer form text stays untouched.")),
-            mustNotContain = mapOf(0 to listOf("nested form object")), untouchedPrefixOf = original)
+            mustNotContain = mapOf(0 to listOf("nested form object")), untouchedPrefixOf = original,
+            changedAreas = areasOf(para, paragraphWith(s, 0, "Edited")), unchangedPages = listOf(1))
     }
 
     @Test
@@ -411,7 +417,8 @@ class ParagraphEditTest : PdfTestBase() {
         publish("transforms", s.currentFile, pages = 4,
             mustContain = mapOf(1 to listOf("This text replaced the flipped paragraph and must be upright.", "Second block inside unbalanced save"),
                 2 to listOf("Joined again.", "Another paragraph further"), 3 to listOf("Still twelve points.", "Also twelve points.")),
-            mustNotContain = mapOf(1 to listOf("Flipped coordinate"), 2 to listOf("Content split")), untouchedPrefixOf = original)
+            mustNotContain = mapOf(1 to listOf("Flipped coordinate"), 2 to listOf("Content split")), untouchedPrefixOf = original,
+            changedAreas = areasOf(para, now), unchangedPages = listOf(0))
     }
 
     @Test
@@ -419,6 +426,7 @@ class ParagraphEditTest : PdfTestBase() {
         val original = fixture("rotated.pdf")
         val s = open(original)
         val contain = HashMap<Int, List<String>>()
+        val areas = ArrayList<String>()
         for (page in 0 until s.pageCount) {
             val word = if (page == 5) "Offset" else "Rotated"
             val para = paragraphWith(s, page, word)
@@ -434,10 +442,11 @@ class ParagraphEditTest : PdfTestBase() {
             assertEquals("page $page direction", dirBefore, dirAfter)
             if (page != 5) assertSameWords(marker, otherWords(s, page, "Edited text"))
             contain[page] = listOf(text)
+            areas.addAll(areasOf(para, now))
         }
         val again = reopen(s.currentFile)
         for (page in 0 until again.pageCount) assertTrue(again.pageTextContent(page).contains("Edited text on page ${page + 1}"))
-        publish("rotated", s.currentFile, pages = 7, mustContain = contain, untouchedPrefixOf = original)
+        publish("rotated", s.currentFile, pages = 7, mustContain = contain, untouchedPrefixOf = original, changedAreas = areas)
     }
 
     @Test
@@ -521,6 +530,7 @@ class ParagraphEditTest : PdfTestBase() {
             val heading = paragraphWith(s, 0, "Annual")
             assertTrue("$name heading font ${heading.replacementFontName}", heading.replacementFontName.startsWith("Liberation Sans"))
             s.replaceParagraph(heading, "Special Members Meeting")
+            val areas = areasOf(para, paragraphWith(s, 0, "weather."), heading, paragraphWith(s, 0, "Special"))
             val again = reopen(s.currentFile)
             assertTrue(name, again.paragraphTexts(0).contains(text))
             assertTrue(name, again.paragraphTexts(0).contains("Special Members Meeting"))
@@ -528,7 +538,8 @@ class ParagraphEditTest : PdfTestBase() {
             publish(name.removeSuffix(".pdf"), s.currentFile, pages = 2,
                 mustContain = mapOf(0 to listOf(text, "Special Members Meeting", "After the break the discussion turned",
                     "the résumé of the treasurer"), 1 to listOf("The second page starts with this paragraph")),
-                mustNotContain = mapOf(0 to listOf("chairperson", "Annual Members")), untouchedPrefixOf = original)
+                mustNotContain = mapOf(0 to listOf("chairperson", "Annual Members")), untouchedPrefixOf = original,
+                changedAreas = areas, unchangedPages = listOf(1))
         }
     }
 
@@ -543,16 +554,19 @@ class ParagraphEditTest : PdfTestBase() {
             assertTrue(s.paragraphTexts(0).contains(text))
             assertTrue(s.pageTextContent(0).contains("привет мир"))
             publish("fpdf", s.currentFile, pages = 1, mustContain = mapOf(0 to listOf(text, "привет мир")),
-                mustNotContain = mapOf(0 to listOf("TrueType")), untouchedPrefixOf = original)
+                mustNotContain = mapOf(0 to listOf("TrueType")), untouchedPrefixOf = original,
+                changedAreas = areasOf(para, paragraphWith(s, 0, "Replaced:")))
         }
         run {
             val original = fixture("matplotlib_type3.pdf")
             val s = open(original)
-            s.replaceParagraph(paragraphWith(s, 0, "caption"), "The caption was edited.")
+            val caption = paragraphWith(s, 0, "caption")
+            s.replaceParagraph(caption, "The caption was edited.")
             assertTrue(s.pageTextContent(0).contains("The caption was edited."))
             assertTrue(s.pageTextContent(0).contains("Chart title in a Type 3 font"))
             publish("type3", s.currentFile, pages = 1, mustContain = mapOf(0 to listOf("The caption was edited.", "Chart title in a Type 3 font")),
-                mustNotContain = mapOf(0 to listOf("glyph procedures")), untouchedPrefixOf = original)
+                mustNotContain = mapOf(0 to listOf("glyph procedures")), untouchedPrefixOf = original,
+                changedAreas = areasOf(caption, paragraphWith(s, 0, "edited.")))
         }
     }
 
@@ -583,9 +597,9 @@ class ParagraphEditTest : PdfTestBase() {
     fun aFailedVerificationLeavesTheDocumentAsItWas() {
         val original = fixture("basic.pdf")
         var reject = false
-        val verifier = SaveVerifier { file, pages, touched ->
+        val verifier = SaveVerifier { candidate, previous, pages, changes ->
             if (reject) throw IllegalStateException("simulated failure")
-            reloadVerifier.verify(file, pages, touched)
+            reloadVerifier.verify(candidate, previous, pages, changes)
         }
         val s = open(original, verifier)
         s.replaceParagraph(paragraphWith(s, 0, "Quarterly"), "Annual Report")

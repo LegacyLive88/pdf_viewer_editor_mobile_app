@@ -33,7 +33,7 @@ that reads or changes the *content* of a PDF is done by an engine module that ha
 | **Android `PdfRenderer` for pixels** | It is PDFium, maintained by Google and updated with the system. Nothing to bundle, so the APK stays small, and pages look the same as in other apps on the device. |
 | **PdfBox-Android for content** | The only mature, permissively licensed (Apache 2.0) library that exposes PDF internals at the level needed to edit text. MuPDF and iText are AGPL. |
 | **Edits are incremental updates** | The original bytes of the user's file are never rewritten – see [Saving](#saving). |
-| **Every save is verified by a second PDF implementation** | The engine writes with PdfBox; the result is only accepted if Android's PDFium opens it and can draw the changed pages. |
+| **Every save is verified by a second PDF implementation** | The engine writes with PdfBox; the result is only accepted if Android's PDFium opens it, can draw the changed pages and – after a paragraph edit – draws the page *identically to before* everywhere outside the edited paragraph. |
 
 ## The document life cycle
 
@@ -114,8 +114,13 @@ This is a real edit, not white paint over old text.
 4. The block is tagged (`/LSPEdit BMC … EMC`) so that, when the page is read again, the
    paragraph is put back in its place in reading order although it sits at the end of the
    content stream.
-5. Safety net: the page is extracted again and every glyph that was *not* part of the paragraph
-   must still be there, in order, in the same place – otherwise the edit is rejected.
+5. Two safety nets, either of which rejects the edit and rolls it back:
+   - *inside the engine:* the page is extracted again and every glyph that was not part of the
+     paragraph must still be there, in order, in the same place;
+   - *outside the engine* (`RenderComparison`, in the app): Android's renderer draws the page
+     before and after, and outside the edited area the two pictures must be the same. This does
+     not depend on the engine being right about anything – it also catches a lost image, a
+     shifted line or a clipping change that text extraction would never notice.
 
 A bundled font is used because PDFs normally embed only the glyphs they use; the original font
 simply cannot draw newly typed characters.
@@ -129,6 +134,10 @@ on each save, so editing the same paragraph five times does not leave five copie
 Two defects of PdfBox-Android's writer are corrected in this subclass (both found by checking
 its output with qpdf): the trailer `/Size` could shrink below the document's object count, and
 cross-reference streams lacked the entry for themselves.
+
+A side effect worth knowing: because updates are only ever appended, **the document as it was
+before the app touched it is still inside the file**. Cutting the file off at its original
+length gives the original back, and PDF tools that understand revisions can do the same.
 
 `DocumentSource.push` then makes the user's file identical to the engine's:
 
