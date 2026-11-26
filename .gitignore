@@ -1,0 +1,23 @@
+# Gradle / build output
+.gradle/
+build/
+**/build/
+local.properties
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing material must never be committed
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Test scratch output
+/tmp/
