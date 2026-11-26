@@ -80,6 +80,9 @@ android {
             excludes += setOf(
                 "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
                 "META-INF/*.kotlin_module",
+                // Parameter tables of Bouncy Castle's post-quantum algorithms: 8 MB that no
+                // PDF ever needs (the library is only here to read encrypted PDFs).
+                "org/bouncycastle/pqc/**",
             )
         }
     }

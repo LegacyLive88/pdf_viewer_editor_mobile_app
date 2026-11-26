@@ -34,6 +34,11 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   the first. For the usual uniform document nothing moves.
 - Each visible page has a bitmap at screen width; when zoomed in, the visible part is rendered
   again at the exact zoom. Memory use therefore does not grow with zoom or page count.
+- **The app says when it cannot show something.** Android's renderer draws no annotations
+  before Android 15, so on those versions the filled-in values of form fields, stamps and
+  sticky notes are missing from the page. A filled-in form that looks empty would mislead its
+  reader, so opening such a PDF shows a message saying so. (Highlights, underlines and
+  strike-outs are drawn by the app itself on every version.)
 - **Nothing is backed up or moved to a new phone** (`allowBackup="false"` plus
   `res/xml/data_extraction_rules.xml` for Android 12+). The app's storage holds working copies
   of the user's documents, which are private, and links to recent documents, which only work
@@ -43,7 +48,9 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 - The device has enough free cache space for a copy of the document (two after the first edit).
 - Android's renderer does not draw annotations before Android 15. The app draws text markup
   itself; **other annotation types (form field values, stamps, notes) are not shown on Android
-  14 and older.**
+  14 and older** – checked on the Android 14 and Android 7 emulators with a test file. The
+  app only detects that such annotations exist (`PdfSession.pagesWithOtherAnnotations`); it
+  does not draw them.
 - Password-protected PDFs are not supported yet and are reported as such.
 - **Screen readers:** the bars, buttons, dialogs and messages are labelled, but the pages
   themselves are pictures to TalkBack – the text on them is not read out. Selecting by tapping
@@ -51,7 +58,8 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 
 **Should be tested**
 - Opening from each entry point; a file that is not a PDF; an empty file; a password-protected
-  file; a very large file; pages of mixed size and rotation; process death and return.
+  file; a very large file; pages of mixed size and rotation; turning the phone; process death
+  and return.
 - Rendering is correct and sharp at every zoom level; memory stays bounded on long documents.
 
 **Tested today**
@@ -67,9 +75,16 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   `visiblePagesAndTheNextOneAreRenderedAtTheWidthOfTheView`,
   `aRequestThatIsCancelledAndReplacedIsNotMistakenForItsReplacement`, `scrollingStopsAtTheEndsAndReportsThePage`,
   `newPageSizesKeepTheReaderOnTheSamePage`, `withoutADocumentNothingHappens`
+- engine `ExtractionTest.pagesWithFormFieldsStampsOrNotesAreReported`
+- app `DocumentViewModelTest`: `aDocumentWithFormFieldsOrStampsSaysThatTheyCannotBeShown`,
+  `whereTheRendererDrawsAnnotationsNothingNeedsSaying`
 - device: `opensADocumentAndDrawsItsPages` (checks real pixels: white paper, ink on the title),
   `aFileThatIsNotAPdfShowsAnErrorInsteadOfCrashing`,
-  `aLargeDocumentOpensAndCanBeEditedOnALaterPage`
+  `aLargeDocumentOpensAndCanBeEditedOnALaterPage`,
+  `aProtectedDocumentCanBeViewedAndSelectedButNotChanged`,
+  `aDocumentWithFormFieldsOrStampsSaysSoWhereAndroidCannotDrawThem` (also checks on the
+  screen whether this Android version really draws the stamp),
+  `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
 - **Not automated:** the system file picker and "Open with" from other apps (they belong to
   the system); return after process death; behaviour under memory pressure.
 

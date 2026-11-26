@@ -358,7 +358,7 @@ class MainActivity : AppCompatActivity(), PdfPagesView.Listener {
     }
 
     private fun snack(text: String, long: Boolean) {
-        val bar = Snackbar.make(b.root, text, if (long) Snackbar.LENGTH_LONG else Snackbar.LENGTH_SHORT)
+        val bar = Snackbar.make(b.root, text, if (long) LONG_MESSAGE_MS else Snackbar.LENGTH_SHORT)
         if (b.bottomArea.isVisible) bar.anchorView = b.bottomArea
         bar.show()
     }
@@ -474,5 +474,8 @@ class MainActivity : AppCompatActivity(), PdfPagesView.Listener {
 
     private companion object {
         const val KEY_URI = "document_uri"
+
+        /** Long messages are a sentence or two; the stock "long" (2.75 s) is too short to read them. */
+        const val LONG_MESSAGE_MS = 6000
     }
 }

@@ -25,7 +25,12 @@ import java.io.IOException
  * page sizes of the file (read with PDFBox) and "draws" blank pages, and it records what it
  * was asked to do so tests can check the app re-reads the file after an edit.
  */
-class FakeRasterizer(val file: File, private val sizes: List<FloatArray>, private val log: MutableList<String>) : PageRasterizer {
+class FakeRasterizer(
+    val file: File,
+    private val sizes: List<FloatArray>,
+    private val log: MutableList<String>,
+    override val drawsAnnotations: Boolean = false,
+) : PageRasterizer {
     override val pageCount: Int get() = sizes.size
     override fun pageSize(pageIndex: Int): FloatArray = sizes[pageIndex]
     override fun render(pageIndex: Int, bitmap: Bitmap, scale: Float, offsetX: Float, offsetY: Float) {
@@ -38,6 +43,9 @@ class FakeRasterizer(val file: File, private val sizes: List<FloatArray>, privat
 
     class Factory : PageRasterizer.Factory {
         val log: MutableList<String> = ArrayList()
+
+        /** Like Android 15 and newer when true; like older versions when false. */
+        var drawsAnnotations: Boolean = false
         override fun open(file: File): PageRasterizer {
             val sizes = try {
                 PDDocument.load(file).use { doc ->
@@ -57,7 +65,7 @@ class FakeRasterizer(val file: File, private val sizes: List<FloatArray>, privat
                 throw IOException("not a PDF", e)
             }
             synchronized(log) { log.add("open ${file.name}") }
-            return FakeRasterizer(file, sizes, log)
+            return FakeRasterizer(file, sizes, log, drawsAnnotations)
         }
     }
 }

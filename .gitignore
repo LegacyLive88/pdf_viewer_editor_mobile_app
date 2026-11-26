@@ -21,3 +21,7 @@ signing.properties
 
 # Test scratch output
 /tmp/
+
+# Python
+__pycache__/
+*.pyc

@@ -157,6 +157,33 @@ class DocumentViewModelTest {
     }
 
     @Test
+    fun aDocumentWithFormFieldsOrStampsSaysThatTheyCannotBeShown() {
+        // Android's renderer draws no annotations before Android 15 (the fake behaves the same)
+        open("form_stamp.pdf")
+        awaitMain("notice") { messages().contains(R.string.msg_annotations_not_shown) }
+        assertEquals("said once", 1, messages().count { it == R.string.msg_annotations_not_shown })
+
+        // highlights are drawn by the app itself and ordinary documents have nothing to miss
+        events.clear()
+        for (name in listOf("annotated.pdf", "basic.pdf")) {
+            open(name)
+            // a selection goes through the engine after the check, so the check is over by now
+            select(0, "Sales", "trend")
+            idle()
+            assertFalse(name, messages().contains(R.string.msg_annotations_not_shown))
+        }
+    }
+
+    @Test
+    fun whereTheRendererDrawsAnnotationsNothingNeedsSaying() {
+        rasterizers.drawsAnnotations = true // Android 15 and newer
+        open("form_stamp.pdf")
+        select(0, "Sales", "trend")
+        idle()
+        assertFalse(messages().contains(R.string.msg_annotations_not_shown))
+    }
+
+    @Test
     fun openingAnotherDocumentReplacesTheFirstAndClosingReturnsToTheStartScreen() {
         open("basic.pdf")
         val first = file

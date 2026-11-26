@@ -15,6 +15,7 @@ import androidx.test.espresso.action.ViewActions.closeSoftKeyboard
 import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.RootMatchers.isPlatformPopup
 import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
@@ -581,10 +582,86 @@ class ViewerDeviceTest {
     }
 
     @Test
+    fun aProtectedDocumentCanBeViewedAndSelectedButNotChanged() {
+        // Encrypted with an owner password only: it opens without asking, using the device's
+        // own cryptography, and is view-only.
+        launch("encrypted_owner.pdf")
+        val original = file.readBytes()
+        onView(withId(R.id.toolSelect)).perform(click())
+        tap(0, locate(0, "Sales"))
+        waitFor("first point taken") { state().selectMode == SelectMode.SECOND_POINT }
+        tap(0, locate(0, "trend"))
+        waitFor("selection made") { state().selection != null }
+        onView(withId(R.id.selHighlight)).perform(click())
+        waitFor("the refusal is explained") {
+            try {
+                onView(withText(R.string.msg_protected)).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        screenshot("12-protected")
+        waitForIdleEngine()
+        assertTrue("a protected file is never written to", file.readBytes().contentEquals(original))
+    }
+
+    @Test
+    fun aDocumentWithFormFieldsOrStampsSaysSoWhereAndroidCannotDrawThem() {
+        // Page 1 of the fixture carries a filled-in form field, a red "APPROVED" stamp and a note.
+        launch("form_stamp.pdf")
+        val drawsAnnotations = PlatformRasterizer.DRAWS_ANNOTATIONS
+        var noticeSeen = false
+        val end = SystemClock.uptimeMillis() + 5_000
+        while (SystemClock.uptimeMillis() < end && !noticeSeen) {
+            noticeSeen = try {
+                onView(withText(R.string.msg_annotations_not_shown)).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                SystemClock.sleep(150); false
+            }
+        }
+        screenshot("13-form-and-stamp")
+
+        // What this device's renderer really does: is the stamp's red frame on the screen?
+        val height = readFile { it.pageSize(0).height }
+        val onTheFrame = colourAt(0, floatArrayOf(331f, height - 431f))
+        val red = ((onTheFrame shr 16) and 0xFF) - ((onTheFrame shr 8) and 0xFF) > 40
+        assertEquals(
+            "PlatformRasterizer.drawsAnnotations must match what Android draws here " +
+                "(API ${android.os.Build.VERSION.SDK_INT}, colour ${Integer.toHexString(onTheFrame)})",
+            drawsAnnotations, red,
+        )
+        assertEquals("the notice appears exactly when something is not shown", !drawsAnnotations, noticeSeen)
+    }
+
+    @Test
+    fun turningThePhoneKeepsTheDocumentAndThePlaceInIt() {
+        launch("operators.pdf") // four pages
+        onActivity { pagesView(it).scrollToPage(2) }
+        waitFor("third page at the top") { onActivity { pagesView(it).firstVisiblePage() } == 2 }
+
+        onActivity { it.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        waitFor("landscape", 60_000) { onActivity { val v = pagesView(it); v.width > v.height } }
+        SystemClock.sleep(1500)
+        assertEquals(Phase.READY, state().phase)
+        assertEquals("still on the same page", 2, onActivity { pagesView(it).firstVisiblePage() })
+        screenshot("14-landscape")
+        // the tools still work on that page
+        onView(withId(R.id.toolSelect)).perform(click())
+        waitFor("select mode") { state().selectMode == SelectMode.FIRST_POINT }
+
+        onActivity { it.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        waitFor("portrait", 60_000) { onActivity { val v = pagesView(it); v.height > v.width } }
+        SystemClock.sleep(1000)
+        assertEquals(2, onActivity { pagesView(it).firstVisiblePage() })
+        assertEquals("turning the phone does not abandon what the user was doing", SelectMode.FIRST_POINT, state().selectMode)
+    }
+
+    @Test
     fun aboutShowsTheVersionAndTheOpenSourceLicences() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         onView(withContentDescription(androidx.appcompat.R.string.abc_action_menu_overflow_description)).perform(click())
-        onView(withText(R.string.action_about)).perform(click())
+        // the menu is a window of its own, which may take a moment to appear
+        onView(withText(R.string.action_about)).inRoot(isPlatformPopup()).perform(click())
         onView(withText(containsString(BuildConfig.VERSION_NAME))).inRoot(isDialog()).check(matches(isDisplayed()))
         screenshot("10-about")
 

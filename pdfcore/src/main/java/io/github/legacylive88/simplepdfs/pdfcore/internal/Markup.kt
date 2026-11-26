@@ -53,6 +53,31 @@ internal object Markup {
 
     private fun annotations(page: PDPage): COSArray? = page.cosObject.getDictionaryObject(COSName.ANNOTS) as? COSArray
 
+    /**
+     * True when the page carries annotations that put something on the page other than text
+     * markup: form fields, stamps, notes, free text, drawings, signatures… Links and pop-ups
+     * draw nothing, and hidden or empty annotations cannot be seen anyway.
+     */
+    fun hasOtherAnnotations(page: PDPage): Boolean {
+        val array = annotations(page) ?: return false
+        for (i in 0 until array.size()) {
+            val dict = array.getObject(i) as? COSDictionary ?: continue
+            if (kindOf(dict) != null) continue
+            when (dict.getNameAsString(COSName.SUBTYPE)) {
+                null, "Link", "Popup" -> continue
+            }
+            val flags = dict.getInt(COSName.F, 0)
+            if (flags and 2 != 0 || flags and 32 != 0) continue // Hidden / NoView
+            val rect = dict.getDictionaryObject(COSName.RECT) as? COSArray
+            if (rect != null && rect.size() >= 4) {
+                val v = FloatArray(4) { k -> (rect.getObject(k) as? COSNumber)?.floatValue() ?: 0f }
+                if (v[0] == v[2] || v[1] == v[3]) continue // no area, e.g. an invisible signature field
+            }
+            return true
+        }
+        return false
+    }
+
     // --- reading ------------------------------------------------------------------------------
 
     fun read(page: PDPage, pageIndex: Int, geom: PageGeometry): List<MarkupInfo> {

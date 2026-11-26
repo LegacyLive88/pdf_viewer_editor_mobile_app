@@ -37,8 +37,8 @@ the text in the PDF – the old text is removed, not covered up.
 - **Protected PDFs:** password-protected files cannot be opened yet; encrypted files that open
   without a password are view-only.
 - **Older Android versions** (14 and below) do not show filled-in form fields, stamps or
-  sticky notes, because Android's built-in renderer does not draw them there. Highlights,
-  underlines and strike-outs are always shown.
+  sticky notes, because Android's built-in renderer does not draw them there. The app says so
+  when such a PDF is opened. Highlights, underlines and strike-outs are always shown.
 - There is **no undo**: saving is instant.
 
 The reasoning behind each of these is in [docs/FEATURES.md](docs/FEATURES.md).

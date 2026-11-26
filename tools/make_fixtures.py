@@ -564,6 +564,56 @@ def make_variants():
     # incremental.pdf: a file that already carries an incremental update
     make_incremental(src, out("incremental.pdf"))
 
+    # form_stamp.pdf: annotations that are neither text markup nor links
+    make_form_stamp(src, out("form_stamp.pdf"))
+
+
+def make_form_stamp(src, dst):
+    """
+    Page 1 gets a filled-in form field, a stamp and a sticky note; page 2 only things that do
+    not count as "content the reader would miss": a link and a hidden stamp. Android's renderer
+    draws none of these before Android 15, so the app has to say so.
+    """
+    import pikepdf
+    with pikepdf.open(src) as pdf:
+        A = pikepdf.Array
+        N = pikepdf.Name
+        D = pikepdf.Dictionary
+
+        def form(data, bbox, resources=None):
+            x = pdf.make_stream(data)
+            x["/Type"] = N.XObject
+            x["/Subtype"] = N.Form
+            x["/BBox"] = A(bbox)
+            if resources is not None:
+                x["/Resources"] = resources
+            return x
+
+        helv = pdf.make_indirect(D(Type=N.Font, Subtype=N.Type1, BaseFont=N.Helvetica))
+        field_ap = form(b"0.9 0.93 1 rg 0 0 220 22 re f 0 g BT /Helv 11 Tf 4 7 Td (Jane Example) Tj ET",
+                        [0, 0, 220, 22], D(Font=D(Helv=helv)))
+        field = pdf.make_indirect(D(
+            Type=N.Annot, Subtype=N.Widget, FT=N.Tx, T="name", V="Jane Example", F=4,
+            Rect=A([72, 420, 292, 442]), DA="/Helv 11 Tf 0 g", AP=D(N=field_ap)))
+        stamp = pdf.make_indirect(D(
+            Type=N.Annot, Subtype=N.Stamp, F=4, Rect=A([330, 415, 500, 447]), Contents="APPROVED",
+            AP=D(N=form(b"0.8 0 0 RG 2 w 1 1 168 30 re S BT /Helv 16 Tf 0.8 0 0 rg 34 9 Td (APPROVED) Tj ET",
+                        [0, 0, 170, 32], D(Font=D(Helv=helv))))))
+        note = pdf.make_indirect(D(
+            Type=N.Annot, Subtype=N.Text, F=4, Rect=A([520, 640, 540, 660]), Contents="Check this figure",
+            Name=N.Comment, C=A([1, 0.8, 0])))
+        pdf.pages[0].Annots = A([field, stamp, note])
+        pdf.Root.AcroForm = pdf.make_indirect(D(Fields=A([field]), DR=D(Font=D(Helv=helv)), DA="/Helv 11 Tf 0 g"))
+
+        link = pdf.make_indirect(D(
+            Type=N.Annot, Subtype=N.Link, F=4, Rect=A([72, 700, 200, 715]), Border=A([0, 0, 0]),
+            A=D(S=N.URI, URI="https://example.com/")))
+        hidden = pdf.make_indirect(D(
+            Type=N.Annot, Subtype=N.Stamp, F=2, Rect=A([300, 300, 400, 330]),
+            AP=D(N=form(b"1 0 0 rg 0 0 100 30 re f", [0, 0, 100, 30]))))
+        pdf.pages[1].Annots = A([link, hidden])
+        pdf.save(dst, static_id=True)
+
 
 def make_incremental(src, dst):
     """Appends a hand-written incremental update (a new Info dictionary) to a classic-xref PDF."""

@@ -284,7 +284,26 @@ class DocumentViewModel(
         }
         d.loaded = session
         d.session.complete(session)
-        if (doc === d && session != null) _state.update { it.copy(textReady = true) }
+        if (doc === d && session != null) {
+            _state.update { it.copy(textReady = true) }
+            warnAboutContentThatIsNotShown(d, session)
+        }
+    }
+
+    /**
+     * A filled-in form that looks empty would mislead its reader. Where the renderer does not
+     * draw annotations, say so once when such a document is opened.
+     */
+    private suspend fun warnAboutContentThatIsNotShown(d: OpenDocument, session: PdfSession) {
+        if (d.rasterizer.drawsAnnotations) return
+        val pages = withContext(engineThread) {
+            try {
+                session.pagesWithOtherAnnotations()
+            } catch (_: Exception) {
+                emptyList() // closed in the meantime
+            }
+        }
+        if (doc === d && pages.isNotEmpty()) message(R.string.msg_annotations_not_shown, long = true)
     }
 
     /** Closes the document and returns to the start screen. */

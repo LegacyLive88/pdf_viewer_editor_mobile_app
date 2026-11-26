@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.graphics.createBitmap
 import io.github.legacylive88.simplepdfs.pdfcore.PageChange
@@ -21,6 +22,13 @@ import java.io.IOException
  */
 interface PageRasterizer : Closeable {
     val pageCount: Int
+
+    /**
+     * Whether [render] draws annotations other than text markup: the values of form fields,
+     * stamps, notes. When it does not, the app tells the user that the document contains
+     * things it cannot show.
+     */
+    val drawsAnnotations: Boolean
 
     /** Page size in points as displayed (rotation applied). Returns width, height. */
     fun pageSize(pageIndex: Int): FloatArray
@@ -49,6 +57,8 @@ class PlatformRasterizer private constructor(private val renderer: PdfRenderer) 
 
     override val pageCount: Int = renderer.pageCount
 
+    override val drawsAnnotations: Boolean get() = DRAWS_ANNOTATIONS
+
     override fun pageSize(pageIndex: Int): FloatArray = renderer.openPage(pageIndex).use { page ->
         floatArrayOf(page.width.toFloat(), page.height.toFloat())
     }
@@ -73,6 +83,13 @@ class PlatformRasterizer private constructor(private val renderer: PdfRenderer) 
 
     companion object {
         val FACTORY = PageRasterizer.Factory { file -> open(file) }
+
+        /**
+         * Android's renderer draws annotations (form field values, stamps, notes) from
+         * Android 15 (API 35) on and none before. Checked on real system images by the
+         * device test `aDocumentWithFormFieldsOrStampsSaysSoWhereAndroidCannotDrawThem`.
+         */
+        val DRAWS_ANNOTATIONS: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
 
         @Throws(IOException::class, PasswordProtectedException::class)
         fun open(file: File): PlatformRasterizer {

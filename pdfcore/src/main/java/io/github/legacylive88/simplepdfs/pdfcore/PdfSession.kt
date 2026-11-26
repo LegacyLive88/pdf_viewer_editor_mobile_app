@@ -177,6 +177,24 @@ class PdfSession private constructor(
     }
 
     /** Highlights and other text markup on the page, for drawing on top of the rendered page. */
+    /**
+     * Pages that carry annotations other than text markup and links: filled-in form fields,
+     * stamps, notes, drawings. A viewer whose renderer does not draw annotations (Android's,
+     * before Android 15) can use this to tell the reader that something is not being shown.
+     */
+    fun pagesWithOtherAnnotations(): List<Int> {
+        checkOpen()
+        val pages = ArrayList<Int>()
+        for (i in 0 until pageCount) {
+            try {
+                if (Markup.hasOtherAnnotations(doc.getPage(i))) pages.add(i)
+            } catch (_: Exception) {
+                // a damaged annotation list is nothing the reader needs to hear about
+            }
+        }
+        return pages
+    }
+
     fun markups(pageIndex: Int): List<MarkupInfo> {
         checkOpen(); checkPage(pageIndex)
         val page = doc.getPage(pageIndex)
