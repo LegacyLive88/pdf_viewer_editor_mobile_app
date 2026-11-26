@@ -10,7 +10,7 @@ There are four layers. Each catches things the others cannot.
 | Device tests | The real app on real Android: platform renderer, touch input, the file on disk | `./gradlew :app:connectedDebugAndroidTest` | emulator or phone |
 
 Everything except the device tests runs on any machine with a JDK, in about a minute:
-85 engine tests and 64 app tests.
+85 engine tests and 67 app tests.
 
 ```bash
 ./gradlew :pdfcore:testDebugUnitTest :app:testDebugUnitTest
@@ -61,7 +61,7 @@ fixtures are committed, so tests do not need any of that.
 |---|---|---|
 | `DocumentViewModelTest` | 27 | opening, the select gesture, copy/highlight/remove, paragraph editing, save copy, share, read-only sources, error messages, the notice for content that cannot be shown |
 | `DocumentSourceTest` | 7 | writing only the tail vs the whole file, read-only detection, recent documents |
-| `PdfPagesViewTest` | 16 | page layout, scrolling, zoom limits and focus, render requests, tap and double-tap reporting |
+| `PdfPagesViewTest` | 19 | page layout, scrolling, zoom limits and focus, render requests, tap and double-tap reporting, keeping the reader's place when the phone is turned |
 | `RenderComparisonTest` | 6 | the before/after picture comparison used to verify paragraph edits (plain JUnit) |
 | `AnnotationProbeTest` | 3 | the small PDF the app renders to find out which annotations the device's renderer draws |
 | `OpenSourceNoticesTest` | 5 | the licences screen names everything the app contains; a new library cannot be added without its licence (plain JUnit) |

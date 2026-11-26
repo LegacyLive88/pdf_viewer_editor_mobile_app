@@ -296,6 +296,84 @@ class PdfPagesViewTest {
         assertEquals("still on the same page although the one above it shrank", 2, view.firstVisiblePage())
     }
 
+    /** Drags a finger vertically by [dy] pixels (negative: the pages move up), slowly, so nothing flings. */
+    private fun dragBy(dy: Float) {
+        clock += 1000
+        val start = clock
+        fun send(action: Int, y: Float) {
+            val e = MotionEvent.obtain(start, clock, action, 180f, y, 0)
+            view.dispatchTouchEvent(e)
+            e.recycle()
+        }
+        send(MotionEvent.ACTION_DOWN, 500f)
+        for (i in 1..10) {
+            clock += 40
+            send(MotionEvent.ACTION_MOVE, 500f + dy * i / 10)
+        }
+        clock += 500 // the finger rests before it lifts
+        send(MotionEvent.ACTION_MOVE, 500f + dy)
+        clock += 20
+        send(MotionEvent.ACTION_UP, 500f + dy)
+        idle(500)
+    }
+
+    /** Lays the view out again at a new size, as turning the phone does. */
+    private fun resize(width: Int, height: Int) {
+        view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+        view.layout(0, 0, width, height)
+    }
+
+    @Test
+    fun turningThePhoneKeepsTheTopOfThePageExactlyWhereItWas() {
+        // The bars cover 100 px at the top in portrait and 80 px in landscape.
+        view.setContentInsets(100, 60)
+        view.scrollToPage(2)
+        draw()
+        assertEquals("page 3 sits one gap below the top bar", 108f, view.pageToScreen(2, 0f, 0f)[1], 0.01f)
+
+        // The system lays out the page view and the bars in one pass; either may come first.
+        resize(640, 360)
+        view.setContentInsets(80, 50)
+        assertEquals(2, view.firstVisiblePage())
+        assertEquals("still one gap below the (now lower) bar", 88f, view.pageToScreen(2, 0f, 0f)[1], 0.01f)
+        draw()
+
+        // and back, this time with the bars resized before the page view
+        view.setContentInsets(100, 60)
+        resize(360, 640)
+        assertEquals(2, view.firstVisiblePage())
+        assertEquals(108f, view.pageToScreen(2, 0f, 0f)[1], 0.01f)
+    }
+
+    @Test
+    fun turningThePhoneInTheMiddleOfAPageKeepsTheSameLineAtTheTop() {
+        view.setContentInsets(100, 60)
+        view.scrollToPage(1)
+        // read on: a quarter of the way into page 2
+        val quarter = 792f / 4f
+        val down = view.pageToScreen(1, 0f, quarter)[1] - 100f
+        dragBy(-down)
+        draw()
+        assertEquals(100f, view.pageToScreen(1, 0f, quarter)[1], 1f)
+
+        resize(640, 360)
+        view.setContentInsets(80, 50)
+        assertEquals(1, view.firstVisiblePage())
+        assertEquals("the same line is at the top, under the new bar", 80f, view.pageToScreen(1, 0f, quarter)[1], 1f)
+    }
+
+    @Test
+    fun barsThatOnlyHideOrShowDoNotMoveThePages() {
+        view.setContentInsets(100, 60)
+        view.scrollToPage(2)
+        draw()
+        val before = view.pageToScreen(2, 0f, 0f)[1]
+        view.setContentInsets(24, 0) // tools hidden: only the status bar is left
+        assertEquals("nothing jumps under the reader's eye", before, view.pageToScreen(2, 0f, 0f)[1], 0.01f)
+        view.setContentInsets(100, 60)
+        assertEquals(before, view.pageToScreen(2, 0f, 0f)[1], 0.01f)
+    }
+
     @Test
     fun withoutADocumentNothingHappens() {
         view.setSource(null)

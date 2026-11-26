@@ -5,6 +5,7 @@ import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
 import io.github.legacylive88.simplepdfs.pdfcore.AnnotationKind
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -73,7 +74,7 @@ object AnnotationProbe {
                         // exactly the call PlatformRasterizer.render makes
                         page.render(bitmap, null, Matrix(), PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         val drawn = BooleanArray(SUBTYPES.size) { i ->
-                            isDark(bitmap.getPixel(i * CELL + CELL / 2, CELL / 2))
+                            isDark(bitmap[i * CELL + CELL / 2, CELL / 2])
                         }
                         return kindsFor(drawn)
                     } finally {

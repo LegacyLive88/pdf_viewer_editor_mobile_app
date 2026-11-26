@@ -34,6 +34,10 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   the first. For the usual uniform document nothing moves.
 - Each visible page has a bitmap at screen width; when zoomed in, the visible part is rendered
   again at the exact zoom. Memory use therefore does not grow with zoom or page count.
+- **Turning the phone keeps the reader's place**: whatever was at the top of the visible area
+  (below the title bar) is at the top afterwards, although the pages are then a different
+  size and the bars a different height. The document stays open and a selection in progress
+  is kept (the activity is not restarted).
 - **The app says when it cannot show something.** Android's renderer leaves out things that
   were added on top of a page: stamps, sticky notes and drawings on every Android version,
   and before Android 15 also whatever was typed into form fields. A filled-in form that looks
@@ -79,7 +83,9 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
 - app `PdfPagesViewTest`: `pagesAreStackedAtFullWidthAndTheFirstOneIsVisible`,
   `visiblePagesAndTheNextOneAreRenderedAtTheWidthOfTheView`,
   `aRequestThatIsCancelledAndReplacedIsNotMistakenForItsReplacement`, `scrollingStopsAtTheEndsAndReportsThePage`,
-  `newPageSizesKeepTheReaderOnTheSamePage`, `withoutADocumentNothingHappens`
+  `newPageSizesKeepTheReaderOnTheSamePage`, `withoutADocumentNothingHappens`,
+  `turningThePhoneKeepsTheTopOfThePageExactlyWhereItWas`,
+  `turningThePhoneInTheMiddleOfAPageKeepsTheSameLineAtTheTop`
 - engine `ExtractionTest.formFieldsStampsAndNotesAreReportedByKind`
 - app `DocumentViewModelTest`: `aDocumentWithFormFieldsOrStampsNamesWhatCannotBeShown`,
   `onlyWhatTheRendererLeavesOutIsMentioned`
@@ -96,6 +102,12 @@ shown as one continuous vertical strip; the title bar shows the file name and "P
   `turningThePhoneKeepsTheDocumentAndThePlaceInIt`
 - **Not automated:** the system file picker and "Open with" from other apps (they belong to
   the system); return after process death; behaviour under memory pressure.
+
+> **Regression note.** The first on-device rotation test (Android 16) found that turning the
+> phone left the end of the previous page showing above the page being read: the place was
+> remembered as a fraction of the page's height even when it lay in the gap *above* the page,
+> and the title bar changes height in the same layout pass. Guarded by the two
+> `turningThePhone…` tests in `PdfPagesViewTest` and by the device test.
 
 ---
 
@@ -173,7 +185,8 @@ screen. A small round button in the top corner brings them back; so does the Bac
 
 **Tested today**
 - app: `toolsCanBeHiddenAndShown`,
-  `PdfPagesViewTest.toolbarsThatCoverThePagesMoveTheContentClearOfThem`
+  `PdfPagesViewTest.toolbarsThatCoverThePagesMoveTheContentClearOfThem`,
+  `PdfPagesViewTest.barsThatOnlyHideOrShowDoNotMoveThePages`
 - device: `feature3_toolsCanBeHiddenAndShownAgain`
 - **Not automated:** Back-button handling; appearance with gesture vs. three-button navigation.
 
