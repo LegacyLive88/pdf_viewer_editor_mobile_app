@@ -1,0 +1,50 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 499 >>
+stream
+BT /F1 11 Tf 1 0 0 1 72 700 Tm (Invoice number) Tj ET
+BT /F1 11 Tf 1 0 0 1 300 700 Tm (2026-0042) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 682 Tm (Customer) Tj ET
+BT /F1 11 Tf 1 0 0 1 300 682 Tm (Legacy Trading) Tj ET
+BT /F1 11 Tf 1 0 0 1 72 664 Tm (Total due) Tj ET
+BT /F1 11 Tf 1 0 0 1 300 664 Tm (R 1 250.00) Tj ET
+BT /F1 12 Tf 1 0 0 1 232.6 560 Tm (A centred block of text) Tj ET
+BT /F1 12 Tf 1 0 0 1 244.6 545 Tm (that has three lines) Tj ET
+BT /F1 12 Tf 1 0 0 1 247.3 530 Tm (of different widths.) Tj ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 6 0 R  >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000419 00000 n 
+0000000969 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1116
+%%EOF

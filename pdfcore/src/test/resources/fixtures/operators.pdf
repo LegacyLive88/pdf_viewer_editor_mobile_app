@@ -1,0 +1,111 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 4 /Kids [7 0 R 9 0 R 12 0 R 14 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 765 >>
+stream
+BT /F1 12 Tf 14 TL 1 0 0 1 72 720 Tm
+(Quote operator first line) Tj
+(moves to the next line itself) '
+2 0.5 (word and char spacing set here) "
+0 Tw 0 Tc
+[(Ker) -30 (ned ) 20 (ar) -15 (ray) -250 (text)] TJ
+ET
+BT /F1 12 Tf 1 0 0 1 72 640 Tm (Stretched) Tj 150 Tz ( wide text) Tj 100 Tz ET
+BT /F1 12 Tf 1 0 0 1 72 610 Tm (Energy is mc) Tj 5 Ts /F1 8 Tf (2) Tj 0 Ts /F1 12 Tf ( in this line.) Tj ET
+BT /F1 12 Tf 1 0 0 1 72 580 Tm (Fake bold heading) Tj ET
+BT /F1 12 Tf 1 0 0 1 72.3 580 Tm (Fake bold heading) Tj ET
+BT 3 Tr /F1 12 Tf 1 0 0 1 72 550 Tm (Invisible OCR text layer) Tj 0 Tr ET
+BT /F1 12 Tf 1 0 0 1 72 520 Tm [(Name:) -6000 (Alice)] TJ ET
+BT 0.8 0.1 0.1 rg /F2 12 Tf 1 0 0 1 72 490 Tm (Red bold paragraph line one) Tj
+0 -15 Td (red bold line two.) Tj 0 g ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 6 0 R  >>
+endobj
+8 0 obj
+<< /Length 263 >>
+stream
+1 0 0 -1 0 792 cm
+q
+BT /F1 12 Tf 1 0 0 -1 72 92 Tm (Flipped coordinate system line one) Tj
+1 0 0 -1 72 107 Tm (flipped line two continues here.) Tj ET
+q 0.5 0.5 0.5 rg 72 150 200 20 re f
+BT /F1 12 Tf 1 0 0 -1 72 200 Tm (Second block inside unbalanced save) Tj ET
+
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 8 0 R  >>
+endobj
+10 0 obj
+<< /Length 66 >>
+stream
+BT /F1 12 Tf 15 TL 1 0 0 1 72 720 Tm (Content split across) Tj T* 
+endstream
+endobj
+11 0 obj
+<< /Length 124 >>
+stream
+(two separate streams.) Tj ET
+BT
+/F1 12 Tf
+15 TL
+1 0 0 1 72 600 Tm
+(Another paragraph further) Tj
+T*
+(down the page.) Tj
+ET
+
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents [10 0 R 11 0 R]  >>
+endobj
+13 0 obj
+<< /Length 165 /Filter /FlateDecode >>
+stream
+xúUéÀÇ0E˜|≈]ÍBl1ÄnQŸπ0Œ å°Z•ı˘ı0&f&ôõINÓ…Û|	:AF~¸I˚†ì‹h´ﬁ£∂,Æp|¡’å∂pùzNAÁ@`&√(m0)=¢Ùç≠GP¿≤ThîÁkÓ8Ïl)∏BÑi<t˛BŸ"Îï$d28çJX%Xä—ËÁ∞¶úÅ{psg\å“Œ~∞>Äc=8
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 13 0 R  >>
+endobj
+xref
+0 15
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000141 00000 n 
+0000000238 00000 n 
+0000000340 00000 n 
+0000000439 00000 n 
+0000001255 00000 n 
+0000001402 00000 n 
+0000001716 00000 n 
+0000001863 00000 n 
+0000001980 00000 n 
+0000002156 00000 n 
+0000002314 00000 n 
+0000002552 00000 n 
+trailer
+<< /Size 15 /Root 1 0 R >>
+startxref
+2701
+%%EOF

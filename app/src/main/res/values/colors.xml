@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light scheme -->
+    <color name="md_primary">#1B5FA8</color>
+    <color name="md_on_primary">#FFFFFF</color>
+    <color name="md_primary_container">#D5E3FF</color>
+    <color name="md_on_primary_container">#001B3D</color>
+    <color name="md_secondary">#545F71</color>
+    <color name="md_on_secondary">#FFFFFF</color>
+    <color name="md_secondary_container">#D8E3F8</color>
+    <color name="md_on_secondary_container">#111C2B</color>
+    <color name="md_tertiary_container">#FFE08A</color>
+    <color name="md_on_tertiary_container">#241A00</color>
+    <color name="md_surface">#FBFCFF</color>
+    <color name="md_on_surface">#1A1C1E</color>
+    <color name="md_surface_variant">#DFE2EB</color>
+    <color name="md_on_surface_variant">#43474E</color>
+    <color name="md_surface_container">#EDEFF5</color>
+    <color name="md_outline">#73777F</color>
+    <color name="md_error">#BA1A1A</color>
+    <color name="page_backdrop">#E3E6EC</color>
+
+    <!-- Dark scheme -->
+    <color name="md_dark_primary">#A7C8FF</color>
+    <color name="md_dark_on_primary">#003062</color>
+    <color name="md_dark_primary_container">#00468A</color>
+    <color name="md_dark_on_primary_container">#D5E3FF</color>
+    <color name="md_dark_secondary">#BCC7DC</color>
+    <color name="md_dark_on_secondary">#263141</color>
+    <color name="md_dark_secondary_container">#3C4758</color>
+    <color name="md_dark_on_secondary_container">#D8E3F8</color>
+    <color name="md_dark_tertiary_container">#5A4500</color>
+    <color name="md_dark_on_tertiary_container">#FFE08A</color>
+    <color name="md_dark_surface">#121316</color>
+    <color name="md_dark_on_surface">#E3E2E6</color>
+    <color name="md_dark_surface_variant">#43474E</color>
+    <color name="md_dark_on_surface_variant">#C3C6CF</color>
+    <color name="md_dark_surface_container">#1E2024</color>
+    <color name="md_dark_outline">#8D9199</color>
+    <color name="md_dark_error">#FFB4AB</color>
+    <color name="page_backdrop_dark">#0A0B0D</color>
+
+    <color name="launcher_background">#1B5FA8</color>
+</resources>

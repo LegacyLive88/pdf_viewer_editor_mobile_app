@@ -1,0 +1,145 @@
+name: Android
+
+# Deliberately frugal with Actions minutes:
+#  - runs after a merge to main, for version tags, and when started by hand;
+#  - pull requests are NOT checked automatically. To change that, add
+#        pull_request:
+#          branches: [main]
+#    to the triggers below.
+#  - the on-device tests (an emulator, the slowest part) only run when asked for.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+    inputs:
+      device_tests:
+        description: Also run the on-device tests in an emulator
+        type: boolean
+        default: false
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests, lint, cross-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: JVM tests and lint
+        run: ./gradlew :pdfcore:testDebugUnitTest :app:testDebugUnitTest :pdfcore:lintDebug :app:lintDebug --stacktrace
+
+      # Every PDF the engine tests wrote is re-checked by qpdf, PDFium, MuPDF and Poppler.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Cross-validate written PDFs with independent implementations
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+          pip install --quiet pypdfium2 pymupdf pikepdf numpy pillow
+          python3 tools/cross_validate.py
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            pdfcore/build/reports/tests
+            app/build/reports/tests
+            app/build/reports/lint-results-debug.html
+            pdfcore/build/reports/lint-results-debug.html
+          retention-days: 14
+
+  device-test:
+    name: On-device tests (emulator)
+    if: github.event_name == 'workflow_dispatch' && inputs.device_tests || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: aosp_atd
+          disable-animations: true
+          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-test-reports
+          path: app/build/reports/androidTests
+          retention-days: 14
+
+  build:
+    name: Release APK
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write   # to attach the APK to a GitHub release for version tags
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Signing is optional: without the secrets an unsigned APK is built, so forks and
+      # first-time set-ups still get a successful build. See docs/BUILD_AND_RELEASE.md.
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIMPLEPDFS_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            echo "SIMPLEPDFS_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::notice::No signing key configured - the APK will be unsigned."
+          fi
+
+      - name: Build
+        env:
+          SIMPLEPDFS_KEYSTORE_PASSWORD: ${{ secrets.SIMPLEPDFS_KEYSTORE_PASSWORD }}
+          SIMPLEPDFS_KEY_ALIAS: ${{ secrets.SIMPLEPDFS_KEY_ALIAS }}
+          SIMPLEPDFS_KEY_PASSWORD: ${{ secrets.SIMPLEPDFS_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true

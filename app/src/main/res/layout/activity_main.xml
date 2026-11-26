@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <io.github.legacylive88.simplepdfs.view.PdfPagesView
+        android:id="@+id/pages"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/pages_description"
+        android:visibility="gone" />
+
+    <!-- Start screen: shown while no document is open. -->
+    <ScrollView
+        android:id="@+id/home"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingLeft="24dp"
+            android:paddingTop="96dp"
+            android:paddingRight="24dp"
+            android:paddingBottom="32dp">
+
+            <ImageView
+                android:layout_width="96dp"
+                android:layout_height="96dp"
+                android:importantForAccessibility="no"
+                android:src="@mipmap/ic_launcher_round" />
+
+            <TextView
+                android:id="@+id/homeTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:text="@string/app_name"
+                android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:id="@+id/homeMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/home_tagline"
+                android:textAppearance="?attr/textAppearanceBodyLarge"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/homeOpen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:minHeight="56dp"
+                android:paddingLeft="28dp"
+                android:paddingRight="28dp"
+                android:text="@string/home_open"
+                app:icon="@drawable/ic_open" />
+
+            <TextView
+                android:id="@+id/recentTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="40dp"
+                android:text="@string/home_recent"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/recentList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Keeps page content from showing through the transparent system bars. -->
+    <View
+        android:id="@+id/statusScrim"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="top"
+        android:background="?attr/colorSurfaceContainer" />
+
+    <View
+        android:id="@+id/navigationScrim"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurfaceContainer" />
+
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="?attr/colorSurfaceContainer"
+        android:elevation="3dp"
+        android:orientation="vertical">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:menu="@menu/main"
+            app:subtitleTextAppearance="?attr/textAppearanceBodySmall"
+            app:title="@string/app_name"
+            app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:trackThickness="3dp" />
+
+        <LinearLayout
+            android:id="@+id/banner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorTertiaryContainer"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/banner_not_in_original"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnTertiaryContainer" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/bannerSaveAs"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/action_save_as"
+                android:textColor="?attr/colorOnTertiaryContainer" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/bottomArea"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorPrimaryContainer"
+            android:gravity="center"
+            android:paddingLeft="16dp"
+            android:paddingTop="10dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="10dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnPrimaryContainer"
+            android:visibility="gone"
+            tools:text="@string/hint_select_first" />
+
+        <LinearLayout
+            android:id="@+id/toolBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorSurfaceContainer"
+            android:baselineAligned="false"
+            android:elevation="3dp"
+            android:orientation="horizontal"
+            android:paddingLeft="4dp"
+            android:paddingRight="4dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolSelect"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:contentDescription="@string/action_select"
+                android:text="@string/label_select"
+                app:icon="@drawable/ic_select" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolZoomOut"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:contentDescription="@string/action_zoom_out"
+                android:text="@string/label_zoom_out"
+                app:icon="@drawable/ic_zoom_out" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolZoomIn"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:contentDescription="@string/action_zoom_in"
+                android:text="@string/label_zoom_in"
+                app:icon="@drawable/ic_zoom_in" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolSaveCopy"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:contentDescription="@string/action_save_copy"
+                android:text="@string/label_save_copy"
+                app:icon="@drawable/ic_save_copy" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolShare"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:contentDescription="@string/action_share"
+                android:text="@string/label_share"
+                app:icon="@drawable/ic_share" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolHide"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:contentDescription="@string/action_hide_tools"
+                android:text="@string/label_hide_tools"
+                app:icon="@drawable/ic_hide_tools" />
+        </LinearLayout>
+
+        <!-- Replaces the tools while text is selected. -->
+        <LinearLayout
+            android:id="@+id/selectionBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorSurfaceContainer"
+            android:baselineAligned="false"
+            android:elevation="3dp"
+            android:orientation="horizontal"
+            android:paddingLeft="4dp"
+            android:paddingRight="4dp"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/selCopy"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:text="@string/action_copy"
+                app:icon="@drawable/ic_copy" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/selHighlight"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:text="@string/action_highlight"
+                app:icon="@drawable/ic_highlight" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/selRemoveHighlight"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:text="@string/action_remove_highlight"
+                app:icon="@drawable/ic_highlight_off" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/selDone"
+                style="@style/Widget.SimplePdfs.ToolButton"
+                android:text="@string/action_done"
+                app:icon="@drawable/ic_close" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- The only control left on screen while the tools are hidden. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/showTools"
+        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:alpha="0.9"
+        android:contentDescription="@string/action_show_tools"
+        android:visibility="gone"
+        app:icon="@drawable/ic_show_tools" />
+</FrameLayout>
