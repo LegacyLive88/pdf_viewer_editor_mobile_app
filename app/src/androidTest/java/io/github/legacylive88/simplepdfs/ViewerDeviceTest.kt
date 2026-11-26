@@ -220,6 +220,19 @@ class ViewerDeviceTest {
     }
 
     /**
+     * The darkest of several samples taken along a word, left and right of [point]. One sample
+     * alone can fall between two letters.
+     */
+    private fun darkestAlong(page: Int, point: FloatArray): Int {
+        var darkest = 0xFFFFFF
+        for (dx in -12..12 step 3) {
+            val c = colourAt(page, floatArrayOf(point[0] + dx, point[1]))
+            if ((c and 0xFF) < (darkest and 0xFF)) darkest = c
+        }
+        return darkest
+    }
+
+    /**
      * True for the yellow of a highlight, whether the sampled spot is bare paper under the
      * highlight (bright yellow) or partly covered by a letter (dark yellow): in both cases
      * blue is well below red and green, which is never true of black ink on white paper.
@@ -247,12 +260,7 @@ class ViewerDeviceTest {
         val paper = colourAt(0, floatArrayOf(300f, 400f))
         assertTrue("page background should be white, was ${Integer.toHexString(paper)}",
             (paper shr 16) > 0xF0 && ((paper shr 8) and 0xFF) > 0xF0 && (paper and 0xFF) > 0xF0)
-        val title = locate(0, "Quarterly")
-        var darkest = 0xFFFFFF
-        for (dx in -12..12 step 3) {
-            val c = colourAt(0, floatArrayOf(title[0] + dx, title[1]))
-            if ((c and 0xFF) < (darkest and 0xFF)) darkest = c
-        }
+        val darkest = darkestAlong(0, locate(0, "Quarterly"))
         assertTrue("there should be ink on the title, darkest was ${Integer.toHexString(darkest)}", (darkest and 0xFF) < 0x90)
         screenshot("01-opened")
     }
@@ -676,9 +684,8 @@ class ViewerDeviceTest {
             launch("basic.pdf")
             assertEquals(2, state().pageCount)
             // and it really draws: there is ink where the title is
-            val title = locate(0, "Quarterly")
-            val ink = colourAt(0, title)
-            assertTrue("the title should be drawn (${Integer.toHexString(ink)})", (ink and 0xFF) < 0xE0)
+            val darkest = darkestAlong(0, locate(0, "Quarterly"))
+            assertTrue("the title should be drawn, darkest was ${Integer.toHexString(darkest)}", (darkest and 0xFF) < 0x90)
             scenario?.close()
         }
         val kept = RendererFactory.keptAliveCount() - keptBefore
