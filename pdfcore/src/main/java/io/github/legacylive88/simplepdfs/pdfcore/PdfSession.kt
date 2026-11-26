@@ -8,6 +8,8 @@ import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.io.RandomAccessBufferedFileInputStream
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
+import io.github.legacylive88.simplepdfs.pdfcore.internal.BundledFontMapper
 import io.github.legacylive88.simplepdfs.pdfcore.internal.FontBook
 import io.github.legacylive88.simplepdfs.pdfcore.internal.Glyph
 import io.github.legacylive88.simplepdfs.pdfcore.internal.IncrementWriter
@@ -195,6 +197,20 @@ class PdfSession private constructor(
         val range = pt.rangeBetween(a.x, a.y, b.x, b.y) ?: return null
         val text = if (capabilities.canCopyText) pt.textFor(range) else ""
         return TextSelection(pageIndex, text, pt.quadsFor(range), pt.revision, range.startSeq, range.endSeq)
+    }
+
+    /**
+     * Finds a word or phrase on a page. Whole words are matched, in reading order; a phrase
+     * may continue on the next line. Each hit is returned as a selection, so it can be shown,
+     * copied or highlighted like one made by tapping.
+     */
+    fun findText(pageIndex: Int, query: String, ignoreCase: Boolean = true): List<TextSelection> {
+        checkOpen(); checkPage(pageIndex)
+        val pt = pageText(pageIndex)
+        return pt.find(query, ignoreCase).map { range ->
+            val text = if (capabilities.canCopyText) pt.textFor(range) else ""
+            TextSelection(pageIndex, text, pt.quadsFor(range), pt.revision, range.startSeq, range.endSeq)
+        }
     }
 
     /** The paragraph under a point, or null when the point is not on text. */
@@ -492,6 +508,17 @@ class PdfSession private constructor(
         private const val TEXT_CACHE_PAGES = 6
         private const val MAIN_MEMORY_BYTES = 24L * 1024 * 1024
 
+        /**
+         * Pays one-off start-up costs of the PDF library now (it loads the metrics of the 14
+         * standard fonts the first time any Type 1 font is met) instead of on the user's first tap.
+         */
+        private fun warmUp() {
+            try {
+                PDType1Font.HELVETICA.name
+            } catch (_: Throwable) {
+            }
+        }
+
         private fun trailerSize(doc: PDDocument): Long =
             maxOf(doc.document.trailer.getLong(COSName.SIZE, 0L), doc.document.highestXRefObjectNumber + 1)
 
@@ -514,6 +541,7 @@ class PdfSession private constructor(
         fun open(context: Context, file: File, workDir: File, verifier: SaveVerifier? = null): PdfSession {
             val app = context.applicationContext
             if (!PDFBoxResourceLoader.isReady()) PDFBoxResourceLoader.init(app)
+            BundledFontMapper.install { name -> app.assets.open(name) }
             if (!workDir.isDirectory && !workDir.mkdirs()) throw PdfOpenException("Cannot create working directory")
             val doc = try {
                 load(file, workDir)
@@ -525,6 +553,7 @@ class PdfSession private constructor(
                 throw PdfOpenException("This PDF is too large to open for editing", e)
             }
             val fonts = FontBook { name -> app.assets.open(name) }
+            warmUp()
             return PdfSession(doc, file, workDir, verifier, fonts)
         }
     }

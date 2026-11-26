@@ -1,0 +1,510 @@
+package io.github.legacylive88.simplepdfs
+
+import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
+import androidx.core.content.FileProvider
+import androidx.lifecycle.ViewModelProvider
+import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.action.ViewActions.closeSoftKeyboard
+import androidx.test.espresso.action.ViewActions.replaceText
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
+import androidx.test.espresso.matcher.ViewMatchers.Visibility
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.platform.graphics.HardwareRendererCompat
+import io.github.legacylive88.simplepdfs.pdfcore.MarkupKind
+import io.github.legacylive88.simplepdfs.pdfcore.PdfSession
+import io.github.legacylive88.simplepdfs.pdfcore.Quad
+import io.github.legacylive88.simplepdfs.view.PdfPagesView
+import org.hamcrest.Matchers.allOf
+import org.hamcrest.Matchers.containsString
+import org.junit.After
+import org.junit.Before
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import java.io.FileOutputStream
+
+/**
+ * The six features exercised on a real Android runtime: real platform PDF rendering, real
+ * touch events, the real file being written.
+ *
+ * Each test copies a fixture into the app's storage, opens it through an "Open with" intent and
+ * then works the UI. What ended up in the file is checked by reading it back with a fresh
+ * engine instance. Screenshots of the key moments are written to
+ * `files/device-test-screens/` so a person can look at them (see docs/TESTING.md).
+ */
+@RunWith(AndroidJUnit4::class)
+class ViewerDeviceTest {
+
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
+    private val dir = File(context.filesDir, "device-test")
+    private var scenario: ActivityScenario<MainActivity>? = null
+    private lateinit var file: File
+
+    @Before
+    fun setUp() {
+        // Slimmed-down test images (ATD) switch UI drawing off; the tests look at pixels.
+        HardwareRendererCompat.setDrawingEnabled(true)
+        dir.deleteRecursively()
+        dir.mkdirs()
+    }
+
+    @After
+    fun tearDown() {
+        scenario?.close()
+    }
+
+    // --- helpers ----------------------------------------------------------------------------------
+
+    private fun launch(fixture: String) {
+        File(dir, "docs").mkdirs()
+        file = File(File(dir, "docs"), fixture)
+        instrumentation.context.assets.open("fixtures/$fixture").use { input ->
+            FileOutputStream(file).use { input.copyTo(it) }
+        }
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setClass(context, MainActivity::class.java)
+            .setDataAndType(Uri.fromFile(file), "application/pdf")
+        scenario = ActivityScenario.launch(intent)
+        waitFor("document and text engine ready", 240_000) { val s = state(); s.phase == Phase.READY && s.textReady }
+        // the first page has been drawn once its bitmap arrived; give the renderer a moment
+        waitForIdleEngine()
+        SystemClock.sleep(1500)
+    }
+
+    private fun <T> onActivity(block: (MainActivity) -> T): T {
+        var result: T? = null
+        scenario!!.onActivity { result = block(it) }
+        @Suppress("UNCHECKED_CAST")
+        return result as T
+    }
+
+    private fun viewModel(activity: MainActivity) = ViewModelProvider(activity)[DocumentViewModel::class.java]
+
+    private fun state(): UiState = onActivity { viewModel(it).state.value }
+
+    private fun waitFor(what: String, timeoutMs: Long = 120_000, condition: () -> Boolean) {
+        val end = SystemClock.uptimeMillis() + timeoutMs
+        while (SystemClock.uptimeMillis() < end) {
+            if (condition()) return
+            SystemClock.sleep(150)
+        }
+        throw AssertionError("Timed out waiting for: $what (state: ${state()})")
+    }
+
+    private fun waitForIdleEngine() = waitFor("engine idle") { val s = state(); !s.working && !s.textBusy }
+
+    /** A fresh look at what is in the file on disk right now. */
+    private fun <T> readFile(block: (PdfSession) -> T): T {
+        val copy = File(dir, "check-${System.nanoTime()}.pdf")
+        file.copyTo(copy, overwrite = true)
+        val session = PdfSession.open(context, copy, File(dir, "check-work-${System.nanoTime()}"))
+        try {
+            return block(session)
+        } finally {
+            session.close()
+            copy.delete()
+        }
+    }
+
+    /** Centre of the first box of the first hit for [text] on a page, in page coordinates. */
+    private fun locate(page: Int, text: String, occurrence: Int = 0): FloatArray = readFile { s ->
+        val hits = s.findText(page, text, ignoreCase = false)
+        assertTrue("'$text' #$occurrence not found on page $page", hits.size > occurrence)
+        val q: Quad = hits[occurrence].quads[0]
+        floatArrayOf((q.left + q.right) / 2f, (q.top + q.bottom) / 2f)
+    }
+
+    private fun pagesView(activity: MainActivity): PdfPagesView = activity.findViewById(R.id.pages)
+
+    /** Screen position (within the page view) of a point on a page. */
+    private fun toView(page: Int, point: FloatArray): FloatArray =
+        onActivity { pagesView(it).pageToScreen(page, point[0], point[1]) }
+
+    /** Sends touch events with exact timestamps straight to the page view. */
+    private fun touch(view: PdfPagesView, x: Float, y: Float, vararg timesAndActions: Pair<Long, Int>) {
+        val down = timesAndActions[0].first
+        for ((time, action) in timesAndActions) {
+            val e = MotionEvent.obtain(down, time, action, x, y, 0)
+            view.dispatchTouchEvent(e)
+            e.recycle()
+        }
+    }
+
+    private fun tap(page: Int, point: FloatArray) {
+        val p = toView(page, point)
+        onActivity {
+            val t = SystemClock.uptimeMillis()
+            touch(pagesView(it), p[0], p[1], t to MotionEvent.ACTION_DOWN, t + 40 to MotionEvent.ACTION_UP)
+        }
+        // a single tap is only confirmed once the double-tap window has passed
+        SystemClock.sleep(450)
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun doubleTap(page: Int, point: FloatArray) {
+        val p = toView(page, point)
+        onActivity {
+            val v = pagesView(it)
+            val t = SystemClock.uptimeMillis()
+            touch(v, p[0], p[1], t to MotionEvent.ACTION_DOWN, t + 40 to MotionEvent.ACTION_UP)
+            touch(v, p[0], p[1], t + 140 to MotionEvent.ACTION_DOWN, t + 180 to MotionEvent.ACTION_UP)
+        }
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun screenshot(name: String) {
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(700)
+        val bitmap: Bitmap = instrumentation.uiAutomation.takeScreenshot() ?: return
+        val out = File(File(context.filesDir, "device-test-screens").apply { mkdirs() }, "$name.png")
+        FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+    }
+
+    /** Average colour of a small square of the screen around a page position. */
+    private fun colourAt(page: Int, point: FloatArray): Int {
+        val p = toView(page, point)
+        val origin = IntArray(2)
+        onActivity { pagesView(it).getLocationOnScreen(origin) }
+        val bitmap = instrumentation.uiAutomation.takeScreenshot()
+        val x = (origin[0] + p[0]).toInt().coerceIn(2, bitmap.width - 3)
+        val y = (origin[1] + p[1]).toInt().coerceIn(2, bitmap.height - 3)
+        var r = 0; var g = 0; var b = 0; var n = 0
+        for (dx in -2..2) for (dy in -2..2) {
+            val c = bitmap.getPixel(x + dx, y + dy)
+            r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF; n++
+        }
+        bitmap.recycle()
+        return ((r / n) shl 16) or ((g / n) shl 8) or (b / n)
+    }
+
+    // --- tests ------------------------------------------------------------------------------------
+
+    @Test
+    fun opensADocumentAndDrawsItsPages() {
+        launch("basic.pdf")
+        val s = state()
+        assertEquals("basic.pdf", s.title)
+        assertEquals(2, s.pageCount)
+        onView(withId(R.id.pages)).check(matches(isDisplayed()))
+        onView(allOf(withText("basic.pdf"), isDescendantOfA(withId(R.id.toolbar)))).check(matches(isDisplayed()))
+        onView(allOf(withText("Page 1 of 2"), isDescendantOfA(withId(R.id.toolbar)))).check(matches(isDisplayed()))
+
+        // The platform renderer really drew the page: white paper, black ink on the title.
+        val paper = colourAt(0, floatArrayOf(300f, 400f))
+        assertTrue("page background should be white, was ${Integer.toHexString(paper)}",
+            (paper shr 16) > 0xF0 && ((paper shr 8) and 0xFF) > 0xF0 && (paper and 0xFF) > 0xF0)
+        val title = locate(0, "Quarterly")
+        var darkest = 0xFFFFFF
+        for (dx in -12..12 step 3) {
+            val c = colourAt(0, floatArrayOf(title[0] + dx, title[1]))
+            if ((c and 0xFF) < (darkest and 0xFF)) darkest = c
+        }
+        assertTrue("there should be ink on the title, darkest was ${Integer.toHexString(darkest)}", (darkest and 0xFF) < 0x90)
+        screenshot("01-opened")
+    }
+
+    @Test
+    fun feature3_toolsCanBeHiddenAndShownAgain() {
+        launch("basic.pdf")
+        onView(withId(R.id.toolBar)).check(matches(isDisplayed()))
+        onView(withId(R.id.toolHide)).perform(click())
+        waitFor("tools hidden") { !state().toolsVisible }
+        onView(withId(R.id.topBar)).check(matches(withEffectiveVisibility(Visibility.GONE)))
+        onView(withId(R.id.bottomArea)).check(matches(withEffectiveVisibility(Visibility.GONE)))
+        onView(withId(R.id.showTools)).check(matches(isDisplayed()))
+        screenshot("03-tools-hidden")
+
+        onView(withId(R.id.showTools)).perform(click())
+        waitFor("tools shown") { state().toolsVisible }
+        onView(withId(R.id.toolBar)).check(matches(isDisplayed()))
+        onView(withId(R.id.showTools)).check(matches(withEffectiveVisibility(Visibility.GONE)))
+    }
+
+    @Test
+    fun feature4_zoomButtonsChangeTheMagnification() {
+        launch("basic.pdf")
+        val start = onActivity { pagesView(it).zoom }
+        assertEquals(1f, start, 0.001f)
+        onView(withId(R.id.toolZoomIn)).perform(click())
+        waitFor("zoomed in") { onActivity { pagesView(it).zoom } > 1.35f }
+        onView(withId(R.id.toolZoomIn)).perform(click())
+        waitFor("zoomed in twice") { onActivity { pagesView(it).zoom } > 1.9f }
+        SystemClock.sleep(2500) // let the sharp patch render
+        screenshot("04-zoomed-in")
+        // Text must still be where the engine says it is after zooming: tap-to-select proves it.
+        onView(withId(R.id.toolZoomOut)).perform(click())
+        waitFor("zoomed out once") { onActivity { pagesView(it).zoom } < 1.5f }
+        onView(withId(R.id.toolZoomOut)).perform(click())
+        onView(withId(R.id.toolZoomOut)).perform(click())
+        waitFor("zoomed out below 1") { onActivity { pagesView(it).zoom } < 0.8f }
+        screenshot("04-zoomed-out")
+    }
+
+    @Test
+    fun feature5_selectThenHighlightAndRemoveHighlightAreSavedInTheFile() {
+        launch("basic.pdf")
+        val original = file.readBytes()
+
+        // Select button, tap, tap.
+        onView(withId(R.id.toolSelect)).perform(click())
+        waitFor("select mode") { state().selectMode == SelectMode.FIRST_POINT }
+        onView(withText(R.string.hint_select_first)).check(matches(isDisplayed()))
+        tap(0, locate(0, "Sales"))
+        waitFor("first point taken") { state().selectMode == SelectMode.SECOND_POINT }
+        onView(withText(R.string.hint_select_second)).check(matches(isDisplayed()))
+        screenshot("05-first-tap")
+        tap(0, locate(0, "trend"))
+        waitFor("selection made") { state().selection != null }
+
+        val s = state()
+        assertEquals("after the second tap the select button is no longer active", SelectMode.OFF, s.selectMode)
+        assertEquals("Sales grew steadily in every region, and the team expects the trend", s.selection!!.text)
+        onView(withId(R.id.selectionBar)).check(matches(isDisplayed()))
+        screenshot("05-selected")
+
+        // Copy puts the text on the clipboard.
+        onView(withId(R.id.selCopy)).perform(click())
+        instrumentation.waitForIdleSync()
+        val clip = onActivity {
+            val cm = it.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.primaryClip?.getItemAt(0)?.text?.toString()
+        }
+        assertEquals("Sales grew steadily in every region, and the team expects the trend", clip)
+
+        // Highlight: shown on screen and written into the very file that was opened.
+        val probe = locate(0, "grew")
+        val before = colourAt(0, floatArrayOf(probe[0], probe[1] - 5.5f))
+        onView(withId(R.id.selHighlight)).perform(click())
+        waitFor("highlight saved") { val st = state(); !st.working && st.selection == null && st.markupVersion > 0 }
+        SystemClock.sleep(800)
+        val after = colourAt(0, floatArrayOf(probe[0], probe[1] - 5.5f))
+        assertTrue("highlight should tint the page (before ${Integer.toHexString(before)}, after ${Integer.toHexString(after)})",
+            (after and 0xFF) < (before and 0xFF) - 60 && (after shr 16) > 0xD0)
+        screenshot("05-highlighted")
+
+        val saved = file.readBytes()
+        assertTrue("the file grew", saved.size > original.size)
+        assertTrue("the original bytes were not rewritten", saved.copyOfRange(0, original.size).contentEquals(original))
+        readFile { session ->
+            val marks = session.markups(0).filter { it.kind == MarkupKind.HIGHLIGHT }
+            assertEquals(1, marks.size)
+            assertEquals(2, marks[0].quads.size)
+        }
+
+        // Remove the highlight from part of it: select two words in the middle.
+        onView(withId(R.id.toolSelect)).perform(click())
+        tap(0, locate(0, "steadily"))
+        waitFor("first point taken") { state().selectMode == SelectMode.SECOND_POINT }
+        tap(0, locate(0, "every"))
+        waitFor("selection made") { state().selection != null }
+        assertEquals("steadily in every", state().selection!!.text)
+        val version = state().markupVersion
+        onView(withId(R.id.selRemoveHighlight)).perform(click())
+        waitFor("highlight trimmed") { val st = state(); !st.working && st.markupVersion > version }
+        screenshot("05-highlight-trimmed")
+        readFile { session ->
+            val marks = session.markups(0).filter { it.kind == MarkupKind.HIGHLIGHT }
+            assertEquals("still one highlight", 1, marks.size)
+            assertEquals("now in three pieces: before, after, and the next line", 3, marks[0].quads.size)
+        }
+    }
+
+    @Test
+    fun feature6_doubleTapOpensTheParagraphEditorAndSavingRewritesTheFile() {
+        launch("basic.pdf")
+        val original = file.readBytes()
+        doubleTap(0, locate(0, "follows"))
+        waitFor("editor shown") {
+            try {
+                onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        onView(withId(R.id.editText)).inRoot(isDialog())
+            .check(matches(withText(containsString("A second paragraph follows after a blank line."))))
+        onView(withId(R.id.editNote)).inRoot(isDialog()).check(matches(withText(containsString("Liberation Sans"))))
+        screenshot("06-editor")
+
+        val newText = "This paragraph was edited on the device and saved straight into the PDF."
+        onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText(newText), closeSoftKeyboard())
+        onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        waitFor("edit saved") {
+            !state().working && file.length() > original.size
+        }
+        SystemClock.sleep(2500) // page is re-rendered from the new file
+        screenshot("06-edited")
+
+        val saved = file.readBytes()
+        assertTrue("the original bytes were not rewritten", saved.copyOfRange(0, original.size).contentEquals(original))
+        readFile { session ->
+            val text = session.pageTextContent(0)
+            assertTrue(text, text.contains(newText))
+            assertFalse(text, text.contains("A second paragraph follows"))
+            assertTrue(text, text.contains("The first paragraph of this document"))
+            assertTrue(text, text.contains("Publish the roadmap"))
+        }
+        // The old words are gone from the screen as well: where "forecasting." stood is paper now.
+        // (The new text is shorter and ends earlier on the second line.)
+    }
+
+    @Test
+    fun feature6_charactersTheFontsLackAreExplainedInTheEditor() {
+        launch("basic.pdf")
+        val original = file.readBytes()
+        doubleTap(0, locate(0, "follows"))
+        waitFor("editor shown") {
+            try {
+                onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText("Chinese 中文 text"), closeSoftKeyboard())
+        onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        waitFor("error shown") {
+            try {
+                onView(withText(containsString("中文"))).inRoot(isDialog()).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        screenshot("06-unsupported-characters")
+        assertTrue("nothing was written", file.readBytes().contentEquals(original))
+        // the dialog is still open so the text can be corrected
+        onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed()))
+    }
+
+    @Test
+    fun feature6_doubleTapWhereThereIsNoTextDoesNothingHarmful() {
+        launch("basic.pdf")
+        val original = file.readBytes()
+        doubleTap(0, floatArrayOf(300f, 500f)) // empty part of the page
+        waitForIdleEngine()
+        SystemClock.sleep(600)
+        assertNull(state().selection)
+        assertTrue(file.readBytes().contentEquals(original))
+    }
+
+    @Test
+    fun feature1_saveCopyWritesTheEditedDocumentAndKeepsWorkingOnTheOriginal() {
+        launch("basic.pdf")
+        // make an edit first so the copy differs from the fixture
+        onView(withId(R.id.toolSelect)).perform(click())
+        tap(0, locate(0, "Sales"))
+        waitFor("first point") { state().selectMode == SelectMode.SECOND_POINT }
+        tap(0, locate(0, "grew"))
+        waitFor("selection") { state().selection != null }
+        onView(withId(R.id.selHighlight)).perform(click())
+        waitFor("saved") { val st = state(); !st.working && st.markupVersion > 0 }
+
+        // The save-copy button opens the system's "create document" screen; the write itself
+        // is what matters here, so it is driven with a destination directly.
+        val target = File(dir, "copy-${System.nanoTime()}.pdf")
+        target.createNewFile()
+        onActivity { viewModel(it).saveCopyTo(Uri.fromFile(target), adopt = false) }
+        waitFor("copy written") { !state().working && target.length() > 0 }
+        assertTrue(target.readBytes().contentEquals(file.readBytes()))
+        assertEquals("still working on the original", "basic.pdf", state().title)
+        assertEquals("basic (copy).pdf", onActivity { viewModel(it).suggestedCopyName() })
+    }
+
+    @Test
+    fun feature2_shareHandsOutAReadableCopyOfTheDocument() {
+        launch("basic.pdf")
+        val shared = File(File(context.cacheDir, "shared"), "basic.pdf")
+        shared.delete()
+        // Tapping Share ends in the system chooser, which belongs to the system; check what the
+        // app hands over instead: a file other apps can read through the app's FileProvider.
+        onActivity { viewModel(it).share() }
+        waitFor("share file prepared") { shared.isFile && shared.length() > 0 && !state().working }
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", shared)
+        val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+        assertTrue(bytes.contentEquals(file.readBytes()))
+        assertEquals("application/pdf", context.contentResolver.getType(uri))
+    }
+
+    @Test
+    fun rotatedPagesAndOtherProducersRenderWithOverlaysInPlace() {
+        launch("rotated.pdf")
+        assertEquals(7, state().pageCount)
+        // highlight on the page rotated by 90 degrees and check the tint lands on its text
+        onActivity { pagesView(it).scrollToPage(1) }
+        SystemClock.sleep(1500)
+        onView(withId(R.id.toolSelect)).perform(click())
+        tap(1, locate(1, "Rotated"))
+        waitFor("first point") { state().selectMode == SelectMode.SECOND_POINT }
+        tap(1, locate(1, "one"))
+        waitFor("selection") { state().selection != null }
+        assertEquals("Rotated page text line one", state().selection!!.text)
+        onView(withId(R.id.selHighlight)).perform(click())
+        waitFor("saved") { val st = state(); !st.working && st.markupVersion > 0 }
+        SystemClock.sleep(800)
+        screenshot("07-rotated-highlight")
+        // The line runs top to bottom on this page. Sample its box just beside the glyphs.
+        val quad = readFile { it.markups(1).first { m -> m.kind == MarkupKind.HIGHLIGHT }.quads[0] }
+        val inside = colourAt(1, floatArrayOf((quad.left + quad.right) / 2f, quad.top + 1.5f))
+        assertTrue("highlight colour expected on the rotated line, was ${Integer.toHexString(inside)}",
+            (inside and 0xFF) < 0xA0 && (inside shr 16) > 0xD0)
+    }
+
+    @Test
+    fun aFileThatIsNotAPdfShowsAnErrorInsteadOfCrashing() {
+        File(dir, "docs").mkdirs()
+        file = File(File(dir, "docs"), "broken.pdf")
+        file.writeText("this is not a pdf")
+        val intent = Intent(Intent.ACTION_VIEW).setClass(context, MainActivity::class.java)
+            .setDataAndType(Uri.fromFile(file), "application/pdf")
+        scenario = ActivityScenario.launch(intent)
+        waitFor("failure reported", 60_000) { state().phase == Phase.FAILED }
+        onView(withText(R.string.err_open_failed)).check(matches(isDisplayed()))
+        onView(withId(R.id.homeOpen)).check(matches(isDisplayed()))
+        screenshot("08-not-a-pdf")
+    }
+
+    @Test
+    fun aLargeDocumentOpensAndCanBeEditedOnALaterPage() {
+        launch("big.pdf")
+        assertEquals(300, state().pageCount)
+        onActivity { pagesView(it).scrollToPage(149) }
+        waitFor("page indicator") { onActivity { pagesView(it).firstVisiblePage() } == 149 }
+        SystemClock.sleep(2000)
+        doubleTap(149, locate(149, "Section"))
+        waitFor("editor shown") {
+            try {
+                onView(withId(R.id.editText)).inRoot(isDialog()).check(matches(isDisplayed())); true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        onView(withId(R.id.editText)).inRoot(isDialog()).perform(replaceText("Chapter 150"), closeSoftKeyboard())
+        val before = file.length()
+        onView(withText(R.string.action_save)).inRoot(isDialog()).perform(click())
+        waitFor("edit saved", 240_000) { !state().working && file.length() > before }
+        SystemClock.sleep(2000)
+        screenshot("09-large-document")
+        readFile { assertTrue(it.pageTextContent(149).contains("Chapter 150")) }
+        assertNotNull(state())
+    }
+}

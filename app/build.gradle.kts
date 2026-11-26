@@ -93,6 +93,10 @@ android {
         }
     }
 
+    // The on-device tests use the same PDF fixtures as the engine's JVM tests.
+    sourceSets["androidTest"].assets.srcDir("../pdfcore/src/test/resources")
+    sourceSets["test"].resources.srcDir("../pdfcore/src/test/resources")
+
     lint {
         abortOnError = true
         warningsAsErrors = false

@@ -1,4 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Legacy\'s Simple PDFs</string>
+    <string name="app_name_short">Simple PDFs</string>
+
+    <!-- Start screen -->
+    <string name="home_tagline">Read, highlight and edit PDFs.</string>
+    <string name="home_open">Open a PDF</string>
+    <string name="home_recent">Recent</string>
+
+    <!-- Tools -->
+    <string name="action_open">Open a PDF</string>
+    <string name="action_close_document">Close document</string>
+    <string name="action_about">About</string>
+    <string name="action_select">Select</string>
+    <string name="action_zoom_in">Zoom in</string>
+    <string name="action_zoom_out">Zoom out</string>
+    <string name="action_save_copy">Save copy</string>
+    <string name="action_share">Share</string>
+    <string name="action_hide_tools">Hide tools</string>
+    <string name="action_show_tools">Show tools</string>
+    <string name="label_select">Select</string>
+    <string name="label_zoom_in">Zoom in</string>
+    <string name="label_zoom_out">Zoom out</string>
+    <string name="label_save_copy">Save copy</string>
+    <string name="label_share">Share</string>
+    <string name="label_hide_tools">Hide</string>
+
+    <!-- Selection -->
+    <string name="action_copy">Copy</string>
+    <string name="action_highlight">Highlight</string>
+    <string name="action_remove_highlight">Remove highlight</string>
+    <string name="action_done">Done</string>
+    <string name="hint_select_first">Tap the first word of the text you want to select</string>
+    <string name="hint_select_second">Now tap the last word, on the same page</string>
+    <string name="msg_select_same_page">Tap a word on the same page as the first one</string>
+    <string name="msg_no_text_on_page">This page has no text that can be selected. It may be a scan.</string>
+    <string name="msg_copied">Copied</string>
+    <string name="msg_copy_not_allowed">The author of this PDF does not allow copying its text</string>
+    <string name="msg_no_highlight_here">There is no highlight on the selected text</string>
+
+    <!-- Paragraph editing -->
+    <string name="dialog_edit_title">Edit paragraph</string>
+    <string name="dialog_edit_hint">Paragraph text</string>
+    <string name="dialog_edit_note">Will be written in %1$s, %2$s pt. Saved straight into the PDF.</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="msg_no_paragraph">There is no text here. Double-tap a paragraph to edit it.</string>
+    <string name="msg_paragraph_saved">Paragraph saved</string>
+    <string name="msg_paragraph_saved_smaller">Saved. The text was made smaller to fit the space.</string>
+    <string name="msg_paragraph_saved_overflow">Saved, but the text is longer than the space available and may overlap what follows.</string>
+    <string name="msg_unsupported_chars">These characters cannot be written with the built-in fonts: %1$s</string>
+    <string name="reason_invisible">This is the text layer of a scan and cannot be edited</string>
+    <string name="reason_unreadable">This PDF does not say which characters these are, so the paragraph cannot be edited</string>
+    <string name="reason_direction">Right-to-left and vertical text cannot be edited yet</string>
+
+    <!-- General -->
+    <string name="msg_preparing_text">Getting the text ready…</string>
+    <string name="msg_text_unavailable">Text tools are not available for this document. It can still be viewed, shared and copied.</string>
+    <string name="msg_protected">This PDF is protected and cannot be changed</string>
+    <string name="msg_edit_failed">The change could not be applied. The document was not changed.</string>
+    <string name="msg_stale">The page has changed. Please try again.</string>
+    <string name="msg_saved_copy">Copy saved</string>
+    <string name="msg_save_copy_failed">The copy could not be saved</string>
+    <string name="msg_share_failed">The document could not be shared</string>
+    <string name="msg_not_saved_to_original">The change is kept in the app but could not be written to the original file</string>
+    <string name="msg_no_app_for_action">No app is available for this</string>
+    <string name="banner_not_in_original">This file was opened read-only, so your changes are only kept inside the app.</string>
+    <string name="action_save_as">Save as…</string>
+    <string name="err_open_failed">This file could not be opened as a PDF.</string>
+    <string name="err_password">This PDF is password protected. Password-protected PDFs are not supported yet.</string>
+    <string name="page_indicator">Page %1$d of %2$d</string>
+    <string name="pages_description">PDF pages</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_body">%1$s %2$s\n\nA simple, free PDF viewer with a few tricks: select, copy, highlight, and edit paragraphs. Changes are saved straight into the PDF.\n\nBuilt with PdfBox-Android (Apache License 2.0). Edited text is written with Liberation Fonts (SIL Open Font License 1.1) and DejaVu Fonts.</string>
+    <string name="action_ok">OK</string>
 </resources>

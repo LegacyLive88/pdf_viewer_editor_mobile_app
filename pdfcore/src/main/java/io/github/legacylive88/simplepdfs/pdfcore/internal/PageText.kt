@@ -115,6 +115,44 @@ internal class PageText(
         return line.glyphs[w.first].seq
     }
 
+    /**
+     * Finds every occurrence of a word or phrase. Matching is by whole words in reading order;
+     * a phrase may run across a line break.
+     */
+    fun find(query: String, ignoreCase: Boolean): List<Range> {
+        val tokens = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return emptyList()
+        // every word of the page in reading order, with the seq range it covers
+        val texts = ArrayList<String>()
+        val starts = ArrayList<Int>()
+        val ends = ArrayList<Int>()
+        for (p in layout.paragraphs) for (line in p.lines) for (w in line.words) {
+            val start = line.glyphs[w.first].seq
+            if (start < 0) continue
+            texts.add(w.text)
+            starts.add(start)
+            ends.add(lastSeq(line, w))
+        }
+        val out = ArrayList<Range>()
+        var i = 0
+        while (i + tokens.size <= texts.size) {
+            var match = true
+            for (k in tokens.indices) {
+                if (!texts[i + k].equals(tokens[k], ignoreCase)) {
+                    match = false
+                    break
+                }
+            }
+            if (match) {
+                out.add(Range(starts[i], ends[i + tokens.size - 1]))
+                i += tokens.size
+            } else {
+                i++
+            }
+        }
+        return out
+    }
+
     /** One box per line fragment covered by the range. */
     fun quadsFor(range: Range): List<Quad> {
         val out = ArrayList<Quad>()

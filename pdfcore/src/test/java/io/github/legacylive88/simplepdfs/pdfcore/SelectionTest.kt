@@ -111,6 +111,26 @@ class SelectionTest : PdfTestBase() {
     }
 
     @Test
+    fun wordsAndPhrasesCanBeFound() {
+        val s = open("basic.pdf")
+        val the = s.findText(0, "the")
+        assertEquals("'the' and 'The' as whole words", 9, the.size)
+        assertEquals(8, s.findText(0, "the", ignoreCase = false).size)
+        assertEquals(1, s.findText(0, "The", ignoreCase = false).size)
+        assertTrue(s.findText(0, "th").isEmpty()) // only whole words
+        // a phrase that runs over a line break gives one hit with two boxes
+        val phrase = s.findText(0, "the team expects the trend")
+        assertEquals(1, phrase.size)
+        assertEquals("the team expects the trend", phrase[0].text)
+        assertEquals(2, phrase[0].quads.size)
+        // a hit behaves like any other selection
+        s.addHighlight(phrase[0])
+        assertEquals(1, s.markups(0).size)
+        assertTrue(s.findText(0, "   ").isEmpty())
+        assertTrue(s.findText(1, "Quarterly").isEmpty())
+    }
+
+    @Test
     fun selectionWorksOnEveryProducer() {
         for (name in listOf("lo_letter.pdf", "chrome_article.pdf", "cairo.pdf")) {
             if (!fixtureExists(name)) continue

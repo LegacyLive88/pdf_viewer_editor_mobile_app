@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A sheet of paper with a folded corner; one of its lines is highlighted. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,28h24l12,12v36c0,2.2 -1.8,4 -4,4H38c-2.2,0 -4,-1.8 -4,-4V32c0,-2.2 1.8,-4 4,-4z" />
+    <path
+        android:fillColor="#C9DAF2"
+        android:pathData="M62,28l12,12H66c-2.2,0 -4,-1.8 -4,-4z" />
+    <path
+        android:fillColor="#FFD84D"
+        android:pathData="M39,50h30v8H39z" />
+    <path
+        android:fillColor="#1B5FA8"
+        android:pathData="M41,43h18v3H41zM41,52.5h26v3H41zM41,62h26v3H41zM41,69h17v3H41z" />
+</vector>
